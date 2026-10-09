@@ -16,6 +16,10 @@ import {
   Check,
   Sparkles,
   Hash,
+  ArrowLeft,
+  Zap,
+  Play,
+  ShieldCheck,
 } from 'lucide-react';
 import { ClassroomUser, UserRole } from './classroomTypes';
 import {
@@ -27,10 +31,20 @@ import { insforgeService } from '../services/insforgeService';
 
 interface ClassroomLoginModalProps {
   onLoginSuccess: (user: ClassroomUser, stream: MediaStream | null) => void;
+  onBackToLanding?: () => void;
+  onQuickSandbox?: () => void;
+  initialRole?: UserRole;
+  isFullPage?: boolean;
 }
 
-export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLoginSuccess }) => {
-  const [role, setRole] = useState<UserRole>('student');
+export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
+  onLoginSuccess,
+  onBackToLanding,
+  onQuickSandbox,
+  initialRole = 'student',
+  isFullPage = false,
+}) => {
+  const [role, setRole] = useState<UserRole>(initialRole);
   const [username, setUsername] = useState('');
   const [classCode, setClassCode] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -50,6 +64,12 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [mediaStatus, setMediaStatus] = useState<'idle' | 'requesting' | 'granted' | 'denied'>('idle');
   const previewVideoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (initialRole) {
+      setRole(initialRole);
+    }
+  }, [initialRole]);
 
   useEffect(() => {
     // Detect mobile vs laptop/desktop
@@ -76,19 +96,22 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
     }
 
     // Also check InsForge database for any active teacher class across devices
-    insforgeService.fetchLatestActiveClass().then((cloudClass) => {
-      if (cloudClass) {
-        setDetectedTeacherClass((prev) => {
-          if (!prev || cloudClass.timestamp > (prev.timestamp || 0)) {
-            return cloudClass;
+    insforgeService
+      .fetchLatestActiveClass()
+      .then((cloudClass) => {
+        if (cloudClass) {
+          setDetectedTeacherClass((prev) => {
+            if (!prev || cloudClass.timestamp > (prev.timestamp || 0)) {
+              return cloudClass;
+            }
+            return prev;
+          });
+          if (role === 'student') {
+            setClassCode((prev) => prev || cloudClass.classCode);
           }
-          return prev;
-        });
-        if (role === 'student') {
-          setClassCode((prev) => prev || cloudClass.classCode);
         }
-      }
-    }).catch(() => {});
+      })
+      .catch(() => {});
 
     // Role-based defaults
     if (role === 'teacher') {
@@ -106,7 +129,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
     return () => window.removeEventListener('resize', checkDevice);
   }, [role]);
 
-  // Request Camera & Mic (Front-facing on mobile)
+  // Request Camera & Mic
   const requestMediaPermissions = async () => {
     setMediaStatus('requesting');
     setErrorMsg('');
@@ -122,7 +145,6 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
       }
     } catch (err: any) {
       console.warn('Media devices access declined or unavailable:', err);
-      // Try video-only fallback
       try {
         const videoStream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: 'user' },
@@ -229,48 +251,67 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="relative w-full max-w-lg md:max-w-xl bg-[#0f172a] border border-[#1e293b] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92dvh] sm:max-h-[90vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
+    <div
+      className={
+        isFullPage
+          ? 'min-h-screen bg-[#070d19] text-slate-100 flex items-center justify-center p-3 sm:p-6 overflow-y-auto'
+          : 'fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/85 backdrop-blur-md overflow-y-auto'
+      }
+    >
+      <div className="relative w-full max-w-lg md:max-w-xl bg-[#0f172a] border border-[#1e293b] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[94dvh] sm:max-h-[92vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {/* Top Header Rainbow Accent */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-amber-500 via-sky-500 to-emerald-500 flex-shrink-0" />
+        <div className="h-1.5 w-full bg-gradient-to-r from-cyan-500 via-sky-500 to-amber-500 flex-shrink-0" />
 
         {/* Scrollable Body */}
         <div className="p-4 sm:p-6 md:p-8 overflow-y-auto space-y-4 sm:space-y-5">
-          {/* Header Title & Device Badge */}
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-amber-500/20 to-sky-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-shrink-0 shadow-inner">
-                <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-lg sm:text-xl font-bold text-slate-100">
-                    Python Classroom Live
-                  </h2>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Class Code Connect
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Teachers host classes &amp; students connect using the teacher's Class Code
-                </p>
-              </div>
-            </div>
+          {/* Back to Landing Page link & Device Indicator */}
+          <div className="flex items-center justify-between">
+            {onBackToLanding ? (
+              <button
+                type="button"
+                onClick={onBackToLanding}
+                className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-cyan-300 font-semibold transition-colors group"
+              >
+                <ArrowLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+                <span>Back to Home</span>
+              </button>
+            ) : (
+              <div />
+            )}
 
-            {/* Device Indicator */}
-            <div className="hidden xs:flex items-center gap-1.5 text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg flex-shrink-0">
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
               {deviceType === 'mobile' ? (
                 <>
                   <Smartphone className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Mobile</span>
+                  <span>Mobile View</span>
                 </>
               ) : (
                 <>
                   <Laptop className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Laptop</span>
+                  <span>Desktop View</span>
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Header Title */}
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-amber-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 flex-shrink-0 shadow-inner">
+              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-100">
+                  Enter Python Classroom
+                </h2>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Live Sync
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Connect with your class or host a session as an instructor
+              </p>
             </div>
           </div>
 
@@ -325,7 +366,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
               </span>
             </button>
 
-            {/* Teacher Role Button (No PIN credential needed) */}
+            {/* Teacher Role Button */}
             <button
               type="button"
               onClick={() => {
@@ -350,7 +391,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
             {/* Username Input */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
-                Your Username
+                Your Username / Display Name
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
@@ -408,7 +449,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
 
                 <p className="text-[11px] text-amber-300/80 flex items-center gap-1">
                   <Info className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                  No password needed. Students enter this code <code>{classCode}</code> to connect to your live classroom.
+                  Students enter this code <code>{classCode}</code> to connect to your live classroom.
                 </p>
               </div>
             ) : (
@@ -465,12 +506,12 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
               </div>
             )}
 
-            {/* Camera & Mic Permission Box (Touch & Mobile Responsive) */}
+            {/* Camera & Mic Permission Box */}
             <div className="p-3 sm:p-3.5 bg-[#090e17] border border-slate-800 rounded-xl space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="text-xs font-semibold text-slate-300">
-                    Camera &amp; Microphone Setup
+                    Camera &amp; Microphone Test
                   </span>
                   {mediaStatus === 'granted' && (
                     <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
@@ -569,6 +610,20 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
+
+          {/* Quick Sandbox option */}
+          {onQuickSandbox && (
+            <div className="pt-2 text-center">
+              <button
+                type="button"
+                onClick={onQuickSandbox}
+                className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors flex items-center justify-center gap-1.5 mx-auto"
+              >
+                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <span>Don't have a room code? Open Visualizer Sandbox directly</span>
+              </button>
+            </div>
+          )}
 
           {/* Footer window info */}
           <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400 flex-wrap gap-2">

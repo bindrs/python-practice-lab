@@ -34,6 +34,8 @@ import {
 } from 'lucide-react';
 import { lectureRecorder, LectureResult } from './services/lectureRecorderService';
 import { LectureVideoModal } from './components/LectureVideoModal';
+import { LandingPage } from './components/LandingPage';
+import { insforgeService } from './services/insforgeService';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -207,6 +209,42 @@ export default function App() {
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
+
+  // View Navigation Mode when not logged in: 'landing' or 'login'
+  const [viewMode, setViewMode] = useState<'landing' | 'login'>('landing');
+  const [loginInitialRole, setLoginInitialRole] = useState<'student' | 'teacher'>('student');
+  const [detectedTeacherClass, setDetectedTeacherClass] = useState<{
+    classCode: string;
+    teacherName: string;
+  } | null>(null);
+
+  useEffect(() => {
+    const active = classroomSync.getActiveTeacherClass();
+    if (active) setDetectedTeacherClass(active);
+    insforgeService
+      .fetchLatestActiveClass()
+      .then((cloud) => {
+        if (cloud) {
+          setDetectedTeacherClass({ classCode: cloud.classCode, teacherName: cloud.teacherName });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleLaunchSandbox = () => {
+    const sandboxUser: ClassroomUser = {
+      sessionId: 'SANDBOX-EXPLORER',
+      role: 'teacher',
+      username: 'Visualizer Explorer',
+      classCode: 'SANDBOX',
+      joinedAt: Date.now(),
+      cameraActive: false,
+      micActive: false,
+      avatarColor: '#38bdf8',
+      lastPing: Date.now(),
+    };
+    handleLoginSuccess(sandboxUser, null);
+  };
 
   const [peers, setPeers] = useState<ClassroomUser[]>([]);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
@@ -742,6 +780,7 @@ export default function App() {
       setMediaStream(null);
     }
     setCurrentUser(null);
+    setViewMode('landing');
     const sayEl = document.getElementById('say');
     if (sayEl) {
       sayEl.innerHTML = `👋 <b>Session Ended:</b> You have explicitly ended your classroom session. Enter a class code or host a new session to reconnect.`;
@@ -3452,11 +3491,34 @@ export default function App() {
 
   return (
     <>
-      {!currentUser && (
-        <ClassroomLoginModal onLoginSuccess={handleLoginSuccess} />
+      {/* Landing Page (Shown when user arrives or logs out) */}
+      {!currentUser && viewMode === 'landing' && (
+        <LandingPage
+          onOpenLogin={(role) => {
+            setLoginInitialRole(role || 'student');
+            setViewMode('login');
+          }}
+          onLaunchSandbox={handleLaunchSandbox}
+          activeTeacherClass={detectedTeacherClass}
+        />
       )}
 
-      <div ref={containerRef} className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}>
+      {/* Login & Join Classroom Page */}
+      {!currentUser && viewMode === 'login' && (
+        <ClassroomLoginModal
+          onLoginSuccess={handleLoginSuccess}
+          onBackToLanding={() => setViewMode('landing')}
+          onQuickSandbox={handleLaunchSandbox}
+          initialRole={loginInitialRole}
+          isFullPage={true}
+        />
+      )}
+
+      <div
+        ref={containerRef}
+        className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}
+        style={!currentUser ? { display: 'none' } : undefined}
+      >
         {/* Main Classroom Header Bar: can be hidden with hide button for best visuals */}
         {currentUser && !isHeaderHidden && (
           <ClassroomHeaderBar
