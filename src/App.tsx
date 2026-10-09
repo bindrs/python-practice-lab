@@ -4,68 +4,15 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { CURRICULUM_MODULES } from './data/curriculumData';
-import CurriculumPage from './components/CurriculumPage';
-import { Language, UI_STRINGS, MODULE_URDULISH, TOPIC_URDULISH } from './data/translations';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    return (localStorage.getItem('py_theme') as 'light' | 'dark') || 'light';
-  });
-
-  const [lang, setLang] = useState<Language>(() => {
-    const saved = localStorage.getItem('py_lang');
-    if (saved === 'urdulish' || saved === 'hinglish') return 'urdulish';
-    return 'en';
-  });
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('py_theme', theme);
-  }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem('py_lang', lang);
-  }, [lang]);
-
-  const t = UI_STRINGS[lang] || UI_STRINGS.en;
-
-  const [viewMode, setViewMode] = useState<'curriculum' | 'studio'>('curriculum');
-  const loadCodeRef = useRef<(codeStr: string, autoRun?: boolean) => void>(() => {});
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
   const [autoTagCloser, setAutoTagCloser] = useState(true);
   const autoTagCloserRef = useRef(true);
   const [memHistoryOn, setMemHistoryOn] = useState(false);
   const memHistoryOnRef = useRef(false);
   const renderVesselsRef = useRef<() => void>(() => {});
-
-  const [isRunning, setIsRunning] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
-  const [stepCounterText, setStepCounterText] = useState('Step 0 / 0');
-  const [canStepBack, setCanStepBack] = useState(false);
-  const [canStepForward, setCanStepForward] = useState(true);
-  const [selectedTopic, setSelectedTopic] = useState('');
-
-  const runnerActionsRef = useRef<{
-    run: () => void;
-    stepBack: () => void;
-    step: () => void;
-    reset: () => void;
-    clear: () => void;
-    predictGo: () => void;
-    predictCancel: () => void;
-    selectTopic: (topicId: string) => void;
-  }>({
-    run: () => {},
-    stepBack: () => {},
-    step: () => {},
-    reset: () => {},
-    clear: () => {},
-    predictGo: () => {},
-    predictCancel: () => {},
-    selectTopic: () => {},
-  });
 
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
@@ -199,7 +146,7 @@ export default function App() {
           i += m[0].length;
           continue;
         }
-        if ((m = /^(\*\*|\/\/=?|==|!=|<=|>=|\+=|-=|\*=|\/=|%=|[-+*\/%()\[\]{},:.=<>])/.exec(r))) {
+        if ((m = /^(\*\*|\/\/=?|==|!=|<=|>=|\+=|-=|\*=|\/=|%=|[-+*\/%()\[\],:.=<>])/.exec(r))) {
           t.push({ k: 'o', v: m[1] });
           i += m[1].length;
           continue;
@@ -377,21 +324,7 @@ export default function App() {
           return ['name', x.v];
         }
         if (x.v === '(') {
-          if (ao(')')) {
-            p++;
-            return ['lit', []];
-          }
           const e = or_();
-          if (ao(',')) {
-            const items = [e];
-            while (ao(',')) {
-              p++;
-              if (ao(')')) break;
-              items.push(or_());
-            }
-            eat(')');
-            return ['list', items];
-          }
           eat(')');
           return e;
         }
@@ -404,27 +337,6 @@ export default function App() {
           }
           eat(']');
           return ['list', a];
-        }
-        if (x.v === '{') {
-          if (ao('}')) {
-            p++;
-            return ['dict', []];
-          }
-          const pairs: any[] = [];
-          while (!ao('}')) {
-            const k = or_();
-            if (ao(':')) {
-              p++;
-              const v = or_();
-              pairs.push([k, v]);
-            } else {
-              pairs.push([k, k]);
-            }
-            if (ao(',')) p++;
-            else break;
-          }
-          eat('}');
-          return ['dict', pairs];
         }
         E('SyntaxError', `line ${ln + 1}: I did not expect '${x.v}'`, ln);
       };
@@ -507,13 +419,10 @@ export default function App() {
         if (w === 'for') {
           const h = head(i);
           const r = body(i);
-          const inIdx = h.findIndex((tok) => tok.k === 'i' && tok.v === 'in');
-          if (inIdx < 1) {
+          if (!(h[0] && h[0].k === 'i' && h[1] && h[1].v === 'in')) {
             E('SyntaxError', `line ${ln + 1}: write  for name in something:`, ln);
           }
-          const loopVars = h.slice(0, inIdx).filter((x) => x.k === 'i').map((x) => x.v);
-          const iterToks = h.slice(inIdx + 1);
-          return [{ t: 'for', ln, vars: loopVars, v: loopVars[0], it: ast(iterToks, ln), b: r[0] }, r[1]];
+          return [{ t: 'for', ln, v: h[0].v, it: ast(h.slice(2), ln), b: r[0] }, r[1]];
         }
         if (w === 'def') {
           const h = head(i);
@@ -521,65 +430,9 @@ export default function App() {
           if (!h[0] || h[0].k !== 'i' || !h[1] || h[1].v !== '(') {
             E('SyntaxError', `line ${ln + 1}: write  def name(parameters):`, ln);
           }
-          const paramToks = h.slice(2, -1);
-          const params: string[] = [];
-          for (let pIdx = 0; pIdx < paramToks.length; pIdx++) {
-            const pt = paramToks[pIdx];
-            if (pt.k === 'i' && (pIdx === 0 || paramToks[pIdx - 1].v === ',')) {
-              params.push(pt.v);
-            }
-          }
-          return [{ t: 'def', ln, n: h[0].v, ps: params.length ? params : h.slice(2, -1).filter((x) => x.k === 'i').map((x) => x.v), b: r[0] }, r[1]];
+          return [{ t: 'def', ln, n: h[0].v, ps: h.slice(2, -1).filter((x) => x.k === 'i').map((x) => x.v), b: r[0] }, r[1]];
         }
-        if (w === 'try') {
-          const [tryBody, nextJ] = body(i);
-          let currentJ = nextJ;
-          const exceptBlocks: any[] = [];
-          let finallyBody: any = null;
-
-          while (currentJ < L.length && L[currentJ].ind === ind && L[currentJ].toks[0].k === 'i') {
-            const kw = L[currentJ].toks[0].v;
-            if (kw === 'except') {
-              const h = head(currentJ);
-              let excType = '';
-              let excAs = '';
-              if (h.length >= 1 && h[0].k === 'i') excType = h[0].v;
-              if (h.length >= 3 && h[1].v === 'as' && h[2].k === 'i') excAs = h[2].v;
-              const r = body(currentJ);
-              exceptBlocks.push({ excType, excAs, b: r[0], ln: L[currentJ].ln });
-              currentJ = r[1];
-            } else if (kw === 'finally') {
-              const r = body(currentJ);
-              finallyBody = r[0];
-              currentJ = r[1];
-              break;
-            } else break;
-          }
-          return [{ t: 'try', ln, tryBody, exceptBlocks, finallyBody }, currentJ];
-        }
-        if (w === 'class') {
-          const h = head(i);
-          const className = h[0]?.v || 'Class';
-          const r = body(i);
-          return [{ t: 'class', ln, n: className, b: r[0] }, r[1]];
-        }
-        if (w === 'return') {
-          const rhs = t.slice(1);
-          if (!rhs.length) return [{ t: 'ret', ln, e: null }, i + 1];
-          if (rhs.some((x) => x.v === ',')) {
-            const rhsParts: any[] = [];
-            let curRhs: any[] = [];
-            for (const tok of rhs) {
-              if (tok.v === ',') {
-                if (curRhs.length) rhsParts.push(ast(curRhs, ln));
-                curRhs = [];
-              } else curRhs.push(tok);
-            }
-            if (curRhs.length) rhsParts.push(ast(curRhs, ln));
-            return [{ t: 'ret', ln, e: ['list', rhsParts] }, i + 1];
-          }
-          return [{ t: 'ret', ln, e: ast(rhs, ln) }, i + 1];
-        }
+        if (w === 'return') return [{ t: 'ret', ln, e: t.length > 1 ? ast(t.slice(1), ln) : null }, i + 1];
         if (w === 'break' || w === 'continue' || w === 'pass') return [{ t: w, ln }, i + 1];
         if (w === 'import' || w === 'from') return [{ t: 'pass', ln, imp: 1 }, i + 1];
         let d = 0;
@@ -595,35 +448,10 @@ export default function App() {
           }
         }
         if (k > 0) {
-          const lhs = t.slice(0, k);
-          const rhs = t.slice(k + 1);
-          const hasComma = lhs.some((x) => x.v === ',');
-          if (hasComma) {
-            const varNames = lhs.filter((x) => x.k === 'i').map((x) => x.v);
-            const rhsHasCommas = rhs.some((x) => x.v === ',');
-            let exprNode;
-            if (rhsHasCommas) {
-              const rhsParts: any[] = [];
-              let curRhs: any[] = [];
-              for (const tok of rhs) {
-                if (tok.v === ',') {
-                  if (curRhs.length) rhsParts.push(ast(curRhs, ln));
-                  curRhs = [];
-                } else curRhs.push(tok);
-              }
-              if (curRhs.length) rhsParts.push(ast(curRhs, ln));
-              exprNode = ['list', rhsParts];
-            } else {
-              exprNode = ast(rhs, ln);
-            }
-            return [{ t: 'multi_asg', ln, vars: varNames, e: exprNode }, i + 1];
-          }
-          const tg = ast(lhs, ln);
-          if (tg[0] !== 'name' && tg[0] !== 'idx' && tg[0] !== 'attr') {
-            E('SyntaxError', `line ${ln + 1}: you can only store a value in a variable, list/dict item, or attribute`, ln);
-          }
+          const tg = ast(t.slice(0, k), ln);
+          if (tg[0] !== 'name' && tg[0] !== 'idx') E('SyntaxError', `line ${ln + 1}: you can only store a value in a variable or a list item`, ln);
           const o = t[k].v;
-          return [{ t: 'asg', ln, tg, op: o === '=' ? null : o.slice(0, -1), e: ast(rhs, ln) }, i + 1];
+          return [{ t: 'asg', ln, tg, op: o === '=' ? null : o.slice(0, -1), e: ast(t.slice(k + 1), ln) }, i + 1];
         }
         return [{ t: 'expr', ln, e: ast(t, ln) }, i + 1];
       }
@@ -737,7 +565,6 @@ export default function App() {
       find: (s, a) => s.indexOf(S1(a, 0)),
       count: (s, a) => (S1(a, 0) ? s.split(a[0]).length - 1 : 0),
       startswith: (s, a) => s.startsWith(S1(a, 0)),
-      startwith: (s, a) => s.startsWith(S1(a, 0)),
       endswith: (s, a) => s.endsWith(S1(a, 0)),
       isdigit: (s) => /^\d+$/.test(s),
       isalpha: (s) => /^[A-Za-z]+$/.test(s),
@@ -809,11 +636,6 @@ export default function App() {
       E('TypeError', `float() cannot convert a ${ty(a)}`);
     };
 
-    const virtualFiles: Record<string, string> = {
-      'data.txt': 'Python 3.12 Standard Data\nKhyber Pakhtunkhwa BT&CE DIT Curriculum\nInteractive Visualizer Lab',
-      'students.csv': 'id,name,score\n1,Amina,92\n2,Bilal,85\n3,Cyrus,96',
-    };
-
     const lst = (a: any[]) => (a.length === 1 && Array.isArray(a[0]) ? a[0] : a);
     const BI: Record<string, (a: any[], k?: any) => any> = {
       print: async (a, k = {}) => {
@@ -829,26 +651,13 @@ export default function App() {
       input: async (a) => ask(a.length ? str(a[0]) : ''),
       len: (a) => {
         if (typeof a[0] === 'string' || Array.isArray(a[0])) return a[0].length;
-        if (a[0] && typeof a[0] === 'object') return Object.keys(a[0]).length;
         E('TypeError', `a ${ty(a[0])} has no len()`);
       },
       int: (a) => toInt(a[0]),
       float: (a) => toFloat(a[0]),
       str: (a) => (a.length ? str(a[0]) : ''),
       bool: (a) => truthy(a[0]),
-      list: (a) => (typeof a[0] === 'string' ? [...a[0]] : Array.isArray(a[0]) ? a[0].slice() : a.length && typeof a[0] === 'object' ? Object.keys(a[0]) : a.length ? E('TypeError', 'list() needs an iterable') : []),
-      dict: (a) => {
-        if (!a.length) return {};
-        if (Array.isArray(a[0])) {
-          const d: Record<string, any> = {};
-          for (const pair of a[0]) {
-            if (Array.isArray(pair) && pair.length >= 2) d[String(pair[0])] = pair[1];
-          }
-          return d;
-        }
-        if (typeof a[0] === 'object' && a[0]) return { ...a[0] };
-        return {};
-      },
+      list: (a) => (typeof a[0] === 'string' ? [...a[0]] : Array.isArray(a[0]) ? a[0].slice() : a.length ? E('TypeError', 'list() needs a list or a string') : []),
       range: (a) => {
         const validated = a.map((x) => {
           if (typeof x !== 'number') E('TypeError', `range() needs whole numbers, not ${ty(x)}`);
@@ -863,84 +672,19 @@ export default function App() {
         for (let i = s; st > 0 ? i < e : i > e; i += st) r.push(i);
         return r;
       },
-      enumerate: (a) => {
-        const arr = typeof a[0] === 'string' ? [...a[0]] : Array.isArray(a[0]) ? a[0] : a[0] && typeof a[0] === 'object' ? Object.keys(a[0]) : [];
-        const start = a[1] !== undefined ? a[1] : 0;
-        return arr.map((item: any, idx: number) => [idx + start, item]);
-      },
-      zip: (a) => {
-        const lists = a.map((x: any) => (typeof x === 'string' ? [...x] : Array.isArray(x) ? x : []));
-        const minLen = lists.length ? Math.min(...lists.map((l: any[]) => l.length)) : 0;
-        const res = [];
-        for (let i = 0; i < minLen; i++) res.push(lists.map((l: any[]) => l[i]));
-        return res;
-      },
-      all: (a) => (Array.isArray(a[0]) ? a[0] : [a[0]]).every(truthy),
-      any: (a) => (Array.isArray(a[0]) ? a[0] : [a[0]]).some(truthy),
-      ord: (a) => (typeof a[0] === 'string' && a[0].length === 1 ? a[0].charCodeAt(0) : E('TypeError', 'ord() expected a character')),
-      chr: (a) => String.fromCharCode(Number(a[0])),
-      pow: (a) => binop('**', a[0], a[1]),
-      open: (a) => {
-        const filename = str(a[0]);
-        const mode = a[1] !== undefined ? str(a[1]) : 'r';
-        if (!virtualFiles[filename]) {
-          virtualFiles[filename] = 'Sample file content created for lab demonstration.';
-        }
-        return {
-          mod: true,
-          filename,
-          mode,
-          read: () => virtualFiles[filename] || '',
-          readline: () => (virtualFiles[filename] || '').split('\n')[0] || '',
-          readlines: () => (virtualFiles[filename] || '').split('\n').map((l) => l + '\n'),
-          write: (text: any[]) => {
-            virtualFiles[filename] = str(text[0]);
-            return (text[0] || '').length;
-          },
-          close: () => null,
-        };
-      },
-      exit: () => { throw CANCEL; },
-      quit: () => { throw CANCEL; },
       type: (a) => ({ cls: ty(a[0]) }),
       abs: (a) => num(Math.abs(nv(a[0])), a[0] instanceof F),
       round: (a) => (a.length > 1 ? new F(+nv(a[0]).toFixed(a[1])) : Math.round(nv(a[0]))),
-      max: (a) => {
-        const l = lst(a);
-        if (!l.length) E('ValueError', 'max() arg is an empty sequence');
-        return l.reduce((x: any, y: any) => (cmpv(y, x) > 0 ? y : x));
-      },
-      min: (a) => {
-        const l = lst(a);
-        if (!l.length) E('ValueError', 'min() arg is an empty sequence');
-        return l.reduce((x: any, y: any) => (cmpv(y, x) < 0 ? y : x));
-      },
-      sum: (a) => (Array.isArray(a[0]) ? a[0] : [a[0]]).reduce((x: any, y: any) => binop('+', x, y), 0),
+      max: (a) => lst(a).reduce((x, y) => (cmpv(y, x) > 0 ? y : x)),
+      min: (a) => lst(a).reduce((x, y) => (cmpv(y, x) < 0 ? y : x)),
+      sum: (a) => a[0].reduce((x: any, y: any) => binop('+', x, y), 0),
       sorted: (a) => a[0].slice().sort(cmpv),
     };
 
-    const NOOP = ['done', 'mainloop', 'exitonclick', 'Screen', 'title', 'setup', 'tracer', 'update', 'speed', 'delay', 'show', 'init', 'plot'];
+    const NOOP = ['done', 'mainloop', 'exitonclick', 'Screen', 'title', 'setup', 'tracer', 'update', 'speed', 'delay'];
     function attr(o: any, n: string) {
       if (typeof o === 'string' && SM[n]) return bi(n, (a) => SM[n](o, a));
       if (Array.isArray(o) && LM[n]) return bi(n, (a) => LM[n](o, a));
-      if (o && typeof o === 'object') {
-        if (n === 'keys') return bi(n, () => Object.keys(o));
-        if (n === 'values') return bi(n, () => Object.values(o));
-        if (n === 'items') return bi(n, () => Object.entries(o));
-        if (n === 'get') return bi(n, (a) => (a[0] in o ? o[a[0]] : a[1] !== undefined ? a[1] : null));
-        if (o.fields && n in o.fields) return o.fields[n];
-        if (n in o) {
-          const val = o[n];
-          if (typeof val === 'function') {
-            return bi(n, (a: any[], k: any = {}) => val(a, k));
-          }
-          return val;
-        }
-      }
-      if (o && o.cls && G.vars[o.cls] && G.vars[o.cls].methods && G.vars[o.cls].methods[n]) {
-        const methodFn = G.vars[o.cls].methods[n];
-        return bi(n, async (a: any[], k: any = {}) => call(methodFn, [o, ...a], k));
-      }
       if (o && o.mod) {
         if (n === 'Turtle') return bi(n, () => ({ tur: true }));
         if (n === 'Screen') return bi(n, () => ({ scr: true }));
@@ -975,113 +719,6 @@ export default function App() {
       if (n in env.vars) return env.vars[n];
       if (n in G.vars) return G.vars[n];
       if (n === 'turtle') return { mod: true };
-      if (n === 'pandas' || n === 'pd') {
-        return {
-          mod: true,
-          read_excel: (a: any[]) => ({
-            df: true,
-            head: () => '   Name  Grade  Attendance\n0 Amina     92          98\n1 Bilal     85          90\n2 Cyrus     96         100',
-            to_excel: (f: any[]) => `Data successfully exported to ${f && f.length ? str(f[0]) : 'output.xlsx'}`
-          }),
-        };
-      }
-      if (n === 'numpy' || n === 'np') {
-        return {
-          mod: true,
-          array: (a: any[]) => (Array.isArray(a[0]) ? a[0] : a),
-          mean: (a: any[]) => {
-            const arr = Array.isArray(a[0]) ? a[0] : a;
-            return arr.length ? arr.reduce((x: any, y: any) => x + y, 0) / arr.length : 0;
-          },
-          sum: (a: any[]) => {
-            const arr = Array.isArray(a[0]) ? a[0] : a;
-            return arr.reduce((x: any, y: any) => x + y, 0);
-          },
-          zeros: (a: any[]) => Array(a[0] || 0).fill(0),
-        };
-      }
-      if (n === 'matplotlib' || n === 'plt') {
-        return {
-          mod: true,
-          pyplot: {
-            plot: () => 'Line plot rendered',
-            show: () => 'Plot displayed',
-          },
-          plot: () => 'Line plot rendered',
-          show: () => 'Plot window opened',
-        };
-      }
-      if (n === 'tkinter' || n === 'tk') {
-        return {
-          mod: true,
-          Tk: () => ({ win: true }),
-          mainloop: () => null,
-        };
-      }
-      if (n === 'pygame') {
-        return {
-          mod: true,
-          init: () => 'PyGame initialized',
-        };
-      }
-      if (n === 'sys') {
-        return {
-          mod: true,
-          version: '3.12.0',
-        };
-      }
-      if (n === 'math') {
-        return {
-          mod: true,
-          pi: Math.PI,
-          e: Math.E,
-          sqrt: (a: any[]) => Math.sqrt(nv(a[0])),
-          floor: (a: any[]) => Math.floor(nv(a[0])),
-          ceil: (a: any[]) => Math.ceil(nv(a[0])),
-          sin: (a: any[]) => Math.sin(nv(a[0])),
-          cos: (a: any[]) => Math.cos(nv(a[0])),
-          tan: (a: any[]) => Math.tan(nv(a[0])),
-          pow: (a: any[]) => Math.pow(nv(a[0]), nv(a[1])),
-          factorial: (a: any[]) => {
-            const num = Math.round(nv(a[0]));
-            let r = 1;
-            for (let i = 2; i <= num; i++) r *= i;
-            return r;
-          },
-          gcd: (a: any[]) => {
-            let x = Math.abs(Math.round(nv(a[0])));
-            let y = Math.abs(Math.round(nv(a[1])));
-            while (y) { const t = y; y = x % y; x = t; }
-            return x;
-          },
-        };
-      }
-      if (n === 'random') {
-        return {
-          mod: true,
-          random: () => Math.random(),
-          randint: (a: any[]) => {
-            const min = Math.ceil(nv(a[0]));
-            const max = Math.floor(nv(a[1]));
-            return Math.floor(Math.random() * (max - min + 1)) + min;
-          },
-          choice: (a: any[]) => {
-            const arr = Array.isArray(a[0]) ? a[0] : typeof a[0] === 'string' ? [...a[0]] : [];
-            return arr[Math.floor(Math.random() * arr.length)];
-          },
-          shuffle: (a: any[]) => {
-            if (Array.isArray(a[0])) a[0].sort(() => Math.random() - 0.5);
-            return null;
-          },
-        };
-      }
-      if (n === 'time') {
-        return {
-          mod: true,
-          time: () => Date.now() / 1000,
-          sleep: async (a: any[]) => sleep(nv(a[0]) * 1000),
-        };
-      }
       if (BI[n]) return bi(n, BI[n]);
       if (TF[n]) return bi(n, TF[n]);
       E('NameError', `name '${n}' is not defined. Create it first, for example  ${n} = ...`);
@@ -1097,15 +734,6 @@ export default function App() {
           const r: any[] = [];
           for (const x of n[1]) r.push(await ev(x, env));
           return r;
-        }
-        case 'dict': {
-          const obj: Record<string, any> = {};
-          for (const [kNode, vNode] of n[1]) {
-            const kVal = await ev(kNode, env);
-            const vVal = await ev(vNode, env);
-            obj[String(kVal)] = vVal;
-          }
-          return obj;
         }
         case 'f': {
           let s = '';
@@ -1172,7 +800,7 @@ export default function App() {
         fnName: f.name,
         args: a.map(rep).join(', '),
       });
-      say_(`**Function Call:** **${esc(f.name)}** chamber started. Parameters: <code>${esc(a.map(rep).join(', '))}</code>`);
+      say_(`🚪 **Portal Open (Function Call):** **${esc(f.name)}** ka chamber shuru hua. Parameters: <code>${esc(a.map(rep).join(', '))}</code>`);
       renderVessels();
       await sleep(350);
 
@@ -1243,40 +871,14 @@ export default function App() {
               say_(`**Variable Assignment:** <b>${esc(varName)}</b> ko value <b>${esc(rep(v))}</b> assign hui.`);
             }
             await setVar(env, varName, v);
-          } else if (s.tg[0] === 'idx') {
+          } else {
             const o = await ev(s.tg[1], env);
             const i = await ev(s.tg[2], env);
             if (typeof o === 'string') E('TypeError', 'a string cannot be changed. Make a new string instead.');
-            if (o && typeof o === 'object' && !Array.isArray(o)) {
-              o[String(i)] = v;
-              say_(`**Dict Updated:** Key <b>${esc(rep(i))}</b> par value <b>${esc(rep(v))}</b> set hui.`);
-            } else {
-              o[idx(o, i)] = v;
-              say_(`**List Updated:** Index <b>${esc(i)}</b> par value <b>${esc(rep(v))}</b> set hui.`);
-            }
+            o[idx(o, i)] = v;
+            say_(`**List Updated:** Index <b>${esc(i)}</b> par value <b>${esc(rep(v))}</b> set hui.`);
             renderVessels();
-          } else if (s.tg[0] === 'attr') {
-            const o = await ev(s.tg[1], env);
-            const attrName = s.tg[2];
-            if (o && typeof o === 'object') {
-              if (o.fields) o.fields[attrName] = v;
-              else o[attrName] = v;
-              say_(`**Attribute Set:** <code>${esc(attrName)}</code> = <b>${esc(rep(v))}</b>.`);
-              renderVessels();
-            }
           }
-          return;
-        }
-        case 'multi_asg': {
-          await gate(s.ln);
-          let val = await ev(s.e, env);
-          if (!Array.isArray(val) && typeof val === 'string') val = [...val];
-          if (!Array.isArray(val)) val = [val];
-          for (let vi = 0; vi < s.vars.length; vi++) {
-            const v = vi < val.length ? val[vi] : null;
-            await setVar(env, s.vars[vi], v);
-          }
-          say_(`**Variables Assigned:** <b>${esc(s.vars.join(', '))}</b>.`);
           return;
         }
         case 'expr': {
@@ -1321,7 +923,7 @@ export default function App() {
               substCond: subst,
               phase: 'resolved',
               outcome: v,
-              evalStr: subst ? `${subst} -> ${v ? 'True' : 'False'}` : `${rawCond} -> ${v ? 'True' : 'False'}`,
+              evalStr: subst ? `${subst} ➔ ${v ? 'True' : 'False'}` : `${rawCond} ➔ ${v ? 'True' : 'False'}`,
             });
             say_(
               `**Decision Gate (${branchType.toUpperCase()}):** Shart <code>${esc(rawCond)}</code>${
@@ -1342,7 +944,7 @@ export default function App() {
               substCond: 'Prior checks evaluated to False',
               phase: 'resolved',
               outcome: true,
-              evalStr: 'Sabhi shartein False thi -> Default Path',
+              evalStr: 'Sabhi shartein False thi ➔ Default Path',
             });
             say_('**Else Corridor:** Sabhi shartein False thi — default fallback path execute ho raha hai.');
             await sleep(450);
@@ -1389,7 +991,7 @@ export default function App() {
               substCond: subst,
               phase: 'resolved',
               outcome: v,
-              evalStr: `Round ${n}: ${subst || rawCond} -> ${v ? 'True' : 'False'}`,
+              evalStr: `Round ${n}: ${subst || rawCond} ➔ ${v ? 'True' : 'False'}`,
             });
             say_(
               `**While Loop Gate (Round #${n}):** Shart <code>${esc(rawCond)}</code>${
@@ -1410,34 +1012,22 @@ export default function App() {
           return;
         }
         case 'for': {
-          let it = await ev(s.it, env);
-          if (typeof it === 'string') it = [...it];
-          if (it && typeof it === 'object' && !Array.isArray(it)) {
-            it = Object.keys(it);
-          }
-          if (!Array.isArray(it)) E('TypeError', `cannot loop over a ${ty(it)}`);
-          const items = it.map(rep);
+          const it = await ev(s.it, env);
+          if (typeof it !== 'string' && !Array.isArray(it)) E('TypeError', `cannot loop over a ${ty(it)}`);
+          const items = [...it];
           let r: any;
-          for (let k = 0; k < it.length; k++) {
+          for (let k = 0; k < items.length; k++) {
             await gate(s.ln);
-            const item = it[k];
             setMeta({
               type: 'loop',
-              title: `for ${s.vars && s.vars.length ? s.vars.join(', ') : s.v} in items`,
-              items: items.slice(0, 10).map((x: any) => String(x)),
+              title: `for ${s.v} in items`,
+              items: items.slice(0, 10).map((x) => String(rep(x))),
               activeIdx: k,
-              val: rep(item),
-              round: `${k + 1}/${it.length}`,
+              val: rep(items[k]),
+              round: `${k + 1}/${items.length}`,
             });
-            say_(`**Loop Conveyor (Round ${k + 1}/${it.length}):** Item <b>${esc(rep(item))}</b>.`);
-            if (s.vars && s.vars.length > 1 && Array.isArray(item)) {
-              for (let vi = 0; vi < s.vars.length; vi++) {
-                if (vi < item.length) await setVar(env, s.vars[vi], item[vi]);
-              }
-            } else {
-              const varName = s.vars && s.vars.length ? s.vars[0] : s.v;
-              await setVar(env, varName, item);
-            }
+            say_(`**Loop Conveyor (Round ${k + 1}/${items.length}):** Item <b>${esc(rep(items[k]))}</b> variable <b>${esc(s.v)}</b> me aaya.`);
+            await setVar(env, s.v, items[k]);
             await sleep(450);
             r = await run(s.b, env);
             if (r) {
@@ -1446,68 +1036,7 @@ export default function App() {
               return r;
             }
           }
-          if (!it.length) say_('Loop collection khali tha, loop aage badh gaya.');
-          return;
-        }
-        case 'try': {
-          await gate(s.ln);
-          say_('**Try Block:** Protected code execution started.');
-          try {
-            const r = await run(s.tryBody, env);
-            if (r) return r;
-          } catch (e: any) {
-            if (e === CANCEL) throw e;
-            const errType = e instanceof PyErr ? e.t : (e.name || 'Exception');
-            const errMsg = e instanceof PyErr ? e.m : (e.message || String(e));
-            let handled = false;
-            for (const eb of s.exceptBlocks) {
-              if (!eb.excType || eb.excType === errType || eb.excType === 'Exception') {
-                await gate(eb.ln);
-                if (eb.excAs) {
-                  await setVar(env, eb.excAs, `${errType}: ${errMsg}`);
-                }
-                say_(`**Exception Caught (${esc(errType)}):** Handled by except block.`);
-                const er = await run(eb.b, env);
-                handled = true;
-                if (er) return er;
-                break;
-              }
-            }
-            if (!handled) throw e;
-          } finally {
-            if (s.finallyBody) {
-              await run(s.finallyBody, env);
-            }
-          }
-          return;
-        }
-        case 'class': {
-          await gate(s.ln);
-          const classEnv = { vars: {}, id: ++envN, title: s.n };
-          await run(s.b, classEnv);
-          const clsMethods: Record<string, any> = { ...classEnv.vars };
-          const clsObj = {
-            cls: s.n,
-            methods: clsMethods,
-            call: async (args: any[]) => {
-              const instance: any = {
-                cls: s.n,
-                fields: {},
-              };
-              if (clsMethods['__init__']) {
-                await call(clsMethods['__init__'], [instance, ...args]);
-              }
-              return instance;
-            }
-          };
-          await setVar(env, s.n, {
-            bi: true,
-            name: s.n,
-            cls: s.n,
-            methods: clsMethods,
-            f: async (a: any[]) => clsObj.call(a),
-          });
-          say_(`**Class Defined:** <code>class ${esc(s.n)}</code> registered with methods.`);
+          if (!items.length) say_('Loop collection khali tha, loop aage badh gaya.');
           return;
         }
         case 'def': {
@@ -1531,17 +1060,17 @@ export default function App() {
             type: 'broadcast',
             text: `return ${rep(v)}`,
           });
-          say_(`**Return:** Function sent back <b>${esc(rep(v))}</b>.`);
+          say_(`🎁 **Beam Out (Return):** Function ne <b>${esc(rep(v))}</b> baahar bheja.`);
           await sleep(400);
           return { ret: v };
         }
         case 'break':
           await gate(s.ln);
-          say_('**Break:** Loop stopped.');
+          say_('🛑 **Break Barrier:** Loop beech me hi toot gaya!');
           return { brk: 1 };
         case 'continue':
           await gate(s.ln);
-          say_('**Continue:** Jumping to next iteration.');
+          say_('⏩ **Continue Warp:** Seedha agle round par jump!');
           return { cont: 1 };
         case 'pass':
           if (s.imp) return;
@@ -1569,164 +1098,17 @@ export default function App() {
     let curLn = 0;
     let OUTTXT = '';
     let pred: string | null = null;
-    let activeSay = '';
-    let activeMeta: any = { type: 'idle' };
-
-    interface HistorySnapshot {
-      ln: number;
-      vars: Record<string, any>;
-      stack: any[];
-      meta: any;
-      say: string;
-      terminalHtml: string;
-      traceRows: any[];
-      traceCols: string[];
-      turtleState?: {
-        x: number;
-        y: number;
-        h: number;
-        pen: boolean;
-        col: string;
-        fil: string;
-        size: number;
-        pts: [number, number][] | null;
-        svgLines: string;
-      };
-      isErr?: boolean;
-    }
-
-    let historyFrames: HistorySnapshot[] = [];
-    let historyIdx = -1;
-
-    function cloneVal(v: any): any {
-      if (v === null || v === undefined) return v;
-      if (typeof v === 'number' || typeof v === 'string' || typeof v === 'boolean') return v;
-      if (v instanceof F) return new F(v.v);
-      if (Array.isArray(v)) return v.map(cloneVal);
-      if (v && v.fn) return { ...v };
-      if (v && v.cls) return { ...v };
-      if (v && v.tur) return { ...v };
-      if (typeof v === 'object') {
-        const o: Record<string, any> = {};
-        for (const k in v) o[k] = cloneVal(v[k]);
-        return o;
-      }
-      return v;
-    }
-
-    function captureSnapshot(ln: number, isErr = false): HistorySnapshot {
-      const varsClone: Record<string, any> = {};
-      for (const k in G.vars) {
-        varsClone[k] = cloneVal(G.vars[k]);
-      }
-      const stackClone = stack.map((st) => ({
-        id: st.id,
-        title: st.title,
-        vars: Object.fromEntries(Object.entries(st.vars).map(([k, v]) => [k, cloneVal(v)])),
-      }));
-
-      return {
-        ln,
-        vars: varsClone,
-        stack: stackClone,
-        meta: activeMeta ? { ...activeMeta } : { type: 'idle' },
-        say: activeSay || '',
-        terminalHtml: screen.innerHTML,
-        traceRows: TR.map((r) => ({ ln: r.ln, snap: { ...r.snap } })),
-        traceCols: [...trCols],
-        turtleState: {
-          x: TS.x,
-          y: TS.y,
-          h: TS.h,
-          pen: TS.pen,
-          col: TS.col,
-          fil: TS.fil,
-          size: TS.size,
-          pts: TS.pts ? TS.pts.map((p) => [p[0], p[1]] as [number, number]) : null,
-          svgLines: tl.innerHTML,
-        },
-        isErr,
-      };
-    }
-
-    function updateStepCounter() {
-      const counterEl = $('#step-counter');
-      const stepBackBtn = $('#step-back') as HTMLButtonElement | null;
-      const stepBtn = $('#step') as HTMLButtonElement | null;
-      const total = historyFrames.length;
-      const curStep = historyIdx >= 0 ? historyIdx + 1 : 0;
-      const counterStr = `${t.stepCounterLabel} ${curStep} / ${total}`;
-      if (counterEl) {
-        counterEl.textContent = counterStr;
-      }
-      if (stepBackBtn) {
-        stepBackBtn.disabled = historyIdx <= 0;
-      }
-      if (stepBtn) {
-        stepBtn.disabled = !running && historyIdx >= total - 1 && total > 0;
-      }
-      setIsRunning(running);
-      setIsPaused(running && mode === 'step');
-      setStepCounterText(counterStr);
-      setCanStepBack(historyIdx > 0);
-      setCanStepForward(running || historyIdx < total - 1 || total === 0);
-    }
-
-    function restoreSnapshot(snap: HistorySnapshot) {
-      curLn = snap.ln;
-      mark.style.top = 6 + snap.ln * LH + 'px';
-      mark.style.opacity = '1';
-      if (snap.isErr) mark.classList.add('bad');
-      else mark.classList.remove('bad');
-
-      const tPos = 6 + snap.ln * LH;
-      if (tPos < edEl.scrollTop) edEl.scrollTop = tPos - 6;
-      else if (tPos + LH > edEl.scrollTop + edEl.clientHeight)
-        edEl.scrollTop = tPos + LH - edEl.clientHeight + 6;
-
-      G.vars = { ...snap.vars };
-      stack = snap.stack.map((s) => ({ ...s, vars: { ...s.vars } }));
-      renderVessels();
-
-      screen.innerHTML = snap.terminalHtml;
-      screen.scrollTop = screen.scrollHeight;
-
-      TR = snap.traceRows.map((r) => ({ ln: r.ln, snap: { ...r.snap } }));
-      trCols = [...snap.traceCols];
-      renderTrace();
-
-      if (snap.turtleState) {
-        TS.x = snap.turtleState.x;
-        TS.y = snap.turtleState.y;
-        TS.h = snap.turtleState.h;
-        TS.pen = snap.turtleState.pen;
-        TS.col = snap.turtleState.col;
-        TS.fil = snap.turtleState.fil;
-        TS.size = snap.turtleState.size;
-        TS.pts = snap.turtleState.pts
-          ? snap.turtleState.pts.map((p) => [p[0], p[1]] as [number, number])
-          : null;
-        tl.innerHTML = snap.turtleState.svgLines;
-        sp();
-      }
-
-      setMeta(snap.meta);
-      activeSay = snap.say;
-      if (sayEl) sayEl.innerHTML = snap.say;
-    }
 
     const spd = () => +(($('#spd') as HTMLInputElement)?.value || 1.5);
     const sleep = (ms: number) =>
       (window as any).__fast ? Promise.resolve() : new Promise((r) => setTimeout(r, ms / spd()));
 
     const say_ = (h: string) => {
-      activeSay = h;
       if (sayEl) sayEl.innerHTML = h;
     };
 
     /* Active Concept Animation (Decision Gates, Loop Orbits, Synthesis Reactors, Broadcasts) */
     function setMeta(data: any) {
-      activeMeta = data;
       if (!stageViewEl) return;
       if (data.type === 'gate') {
         const isTrue = !!data.outcome;
@@ -1754,7 +1136,7 @@ export default function App() {
                     ? `<span class="gate-eval-subst">[ ${esc(data.substCond)} ]</span>`
                     : ''
                 }
-                <span class="gate-eval-arrow">-&gt;</span>
+                <span class="gate-eval-arrow">➔</span>
                 ${
                   isTesting
                     ? `<span class="gate-eval-result res-evaluating">EVALUATING</span>`
@@ -1874,7 +1256,7 @@ export default function App() {
               <span class="fusion-target">${esc(data.target)}</span>
               <span class="fusion-op">${esc(data.op)}</span>
               <span class="fusion-delta">${esc(data.delta)}</span>
-              <span class="fusion-arrow">-&gt;</span>
+              <span class="fusion-arrow">➔</span>
               <span class="fusion-result">${esc(data.newVal)}</span>
             </div>
           </div>
@@ -1904,28 +1286,21 @@ export default function App() {
     async function gate(ln: number) {
       if (cur !== gen) throw CANCEL;
       curLn = ln;
-      if (++steps > 2500) E('RuntimeError', 'More than 2500 steps executed. Potential infinite loop.', ln);
+      if (++steps > 4000) E('RuntimeError', 'More than 4000 steps executed. Potential infinite loop.', ln);
       mark.style.top = 6 + ln * LH + 'px';
       mark.style.opacity = '1';
       mark.classList.remove('bad');
 
-      const tPos = 6 + ln * LH;
-      if (tPos < edEl.scrollTop) edEl.scrollTop = tPos - 6;
-      else if (tPos + LH > edEl.scrollTop + edEl.clientHeight)
-        edEl.scrollTop = tPos + LH - edEl.clientHeight + 6;
-
-      // Record snapshot into time-travel history
-      const snap = captureSnapshot(ln);
-      historyFrames.push(snap);
-      historyIdx = historyFrames.length - 1;
-      updateStepCounter();
+      const t = 6 + ln * LH;
+      if (t < edEl.scrollTop) edEl.scrollTop = t - 6;
+      else if (t + LH > edEl.scrollTop + edEl.clientHeight) edEl.scrollTop = t + LH - edEl.clientHeight + 6;
 
       if (mode === 'step') {
         if (auto) auto = false;
         else await new Promise<void>((r) => (wait = r));
         wait = null;
       } else {
-        await sleep(Math.max(60, 240 / spd()));
+        await sleep(240);
       }
       if (cur !== gen) throw CANCEL;
     }
@@ -2010,7 +1385,7 @@ export default function App() {
                   </div>
                   <div class="str-meta-footer">
                     <span class="str-len-tag">len: ${chars.length}</span>
-                    <span class="str-syntax-tag">${esc(k)}[0] -&gt; '${esc(chars[0])}'</span>
+                    <span class="str-syntax-tag">${esc(k)}[0] ➔ '${esc(chars[0])}'</span>
                   </div>
                 </div>
               `;
@@ -2072,7 +1447,7 @@ export default function App() {
                   const histList = (memHistoryOnRef.current && varHist[k]) ? varHist[k] : [];
                   const inlineHistoryHtml = histList.length > 0 ? `
                     <div style="display:flex; align-items:center; gap:4px; font-size:11px; opacity:0.35; margin-bottom:4px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace;">
-                      ${histList.map(hx => `<span>${esc(rep(hx))}</span>`).join(' <span>-&gt;</span> ')} <span>-&gt;</span>
+                      ${histList.map(hx => `<span>${esc(rep(hx))}</span>`).join(' <span>➔</span> ')} <span>➔</span>
                     </div>
                   ` : '';
                   return inlineHistoryHtml + `<div style="font-weight:700; font-size:1.15em; color:var(--text);">${valDisplay}</div>`;
@@ -2112,7 +1487,6 @@ export default function App() {
     }
 
     async function setVar(env: any, name: string, v: any) {
-      if (cur !== gen) throw CANCEL;
       const isNew = !(name in env.vars) && !(name in G.vars);
       const existingVal = env.vars[name] !== undefined ? env.vars[name] : G.vars[name];
       if (existingVal !== undefined && !eq(existingVal, v)) {
@@ -2122,20 +1496,228 @@ export default function App() {
       }
       env.vars[name] = v;
 
-      renderVessels(name, isNew, v);
-      if (stack.length === 1) traceAdd();
-
-      const valPreview = typeof v === 'string' ? `"${cut(v, 14)}"` : cut(rep(v), 16);
+      // STEP 1: APPEAR BOX
+      // When assigning any variable, the box appears first with receiver slot waiting!
+      renderVessels(name, isNew, v, 'appearbox');
       say_(
-        `**Memory Entry:** Variable <b>${esc(name)}</b> = <code>${esc(valPreview)}</code> memory slot mein set hua.`
+        `**Box Appears:** Variable <code>${esc(name)}</code> ke liye memory box ready hua. Value fly hokar enter hogi...`
       );
+
+      const targetBox = vesselsEl.querySelector(`[data-var="${name}"]`) as HTMLElement;
+      const targetSlot = targetBox?.querySelector('.mem-slot') as HTMLElement;
+
+      if (targetBox && targetSlot && !((window as any).__fast)) {
+        await sleep(180 / spd());
+
+        const srcEl = mark || edEl;
+        const srcRect = srcEl ? srcEl.getBoundingClientRect() : { left: 80, top: 140, width: 40, height: 24 };
+        const tgtRect = targetSlot.getBoundingClientRect();
+
+        const srcX = srcRect.left + (srcEl === mark ? 60 : srcRect.width / 2);
+        const srcY = srcRect.top + srcRect.height / 2;
+        const tgtX = tgtRect.left + tgtRect.width / 2;
+        const tgtY = tgtRect.top + tgtRect.height / 2;
+
+        // High overhead flight path (flying over editor and theater)
+        const apexY = Math.max(20, Math.min(srcY, tgtY) - 130);
+        const midX = (srcX + tgtX) / 2;
+        const hoverY = tgtY - 72;
+
+        const t = ty(v);
+        const tCls =
+          t === 'int' || t === 'float'
+            ? 'p-num'
+            : t === 'str'
+            ? 'p-str'
+            : t === 'bool'
+            ? 'p-bool'
+            : 'p-list';
+
+        // Create the flying capsule without icons
+        const flyer = document.createElement('div');
+        flyer.className = `flyover-capsule ${tCls}`;
+        const valPreview = typeof v === 'string' ? `"${cut(v, 10)}"` : cut(rep(v), 12);
+        flyer.innerHTML = `
+          <div class="flyover-body">
+            <span class="flyover-label">${esc(name)}</span>
+            <span class="flyover-eq">=</span>
+            <span class="flyover-val">${esc(valPreview)}</span>
+          </div>
+          <div class="flyover-tail"></div>
+        `;
+        document.body.appendChild(flyer);
+
+        say_(
+          `**Flying Over:** <code>${esc(name)} = ${esc(valPreview)}</code> memory box <b>${esc(name)}</b> ki taraf ja raha hai.`
+        );
+
+        // STAGE A: FLY OVER THE SCREEN (High Arched Aerial Flight Over Animation)
+        const flyDuration = 520 / spd();
+        const flyAnim = flyer.animate(
+          [
+            { transform: `translate(${srcX}px, ${srcY}px) scale(0.65) rotate(-14deg)`, opacity: 0 },
+            { transform: `translate(${srcX + (midX - srcX) * 0.3}px, ${apexY + 25}px) scale(1.18) rotate(-8deg)`, opacity: 1, offset: 0.25 },
+            { transform: `translate(${midX}px, ${apexY}px) scale(1.3) rotate(4deg)`, opacity: 1, offset: 0.55 },
+            { transform: `translate(${tgtX - 10}px, ${hoverY - 8}px) scale(1.12) rotate(1deg)`, opacity: 1, offset: 0.85 },
+            { transform: `translate(${tgtX}px, ${hoverY}px) scale(1.05) rotate(0deg)`, opacity: 1, offset: 1 },
+          ],
+          {
+            duration: flyDuration,
+            easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+            fill: 'forwards',
+          }
+        );
+        await flyAnim.finished;
+
+        // STAGE B: TARGET LOCK & HOVER OVER BOX
+        say_(
+          `**Target Locked on \`${esc(name)}\`:** Value box ke theek upar aakar ruki, ab neeche drop hogi.`
+        );
+        await sleep(140 / spd());
+
+        // STAGE C: VERTICAL GRAVITATIONAL DROP DIRECTLY INTO THE BOX
+        const dropDuration = 240 / spd();
+        const dropAnim = flyer.animate(
+          [
+            { transform: `translate(${tgtX}px, ${hoverY}px) scale(1.05)`, opacity: 1 },
+            { transform: `translate(${tgtX}px, ${tgtY - 10}px) scale(0.9, 1.25)`, opacity: 0.95, offset: 0.8 },
+            { transform: `translate(${tgtX}px, ${tgtY}px) scale(1.3, 0.45)`, opacity: 0, offset: 1 },
+          ],
+          {
+            duration: dropDuration,
+            easing: 'cubic-bezier(0.55, 0.055, 0.675, 0.19)',
+            fill: 'forwards',
+          }
+        );
+        await dropAnim.finished;
+        flyer.remove();
+
+        // STAGE D: IMPACT BURST & THUD ON BOX
+        spawnDropSparks(tgtX, tgtY, tCls);
+        targetBox.classList.add('drop-thud');
+        setTimeout(() => targetBox.classList.remove('drop-thud'), 450);
+      }
+
+      // STEP 2: ENTER IN BOX WITH FILL EFFECT & STRING INDEXES
+      renderVessels(name, isNew, v, 'dropping');
+      say_(
+        `**Entered with Fill Effect:** Value <code>${esc(rep(v))}</code> memory box <b>${esc(
+          name
+        )}</b> me store ho gayi.`
+      );
+
+      if (stack.length === 1) traceAdd();
+      await sleep(380 / spd());
+
+      // Settle back into professional stable state
+      renderVessels();
     }
 
-    /* Direct Terminal output */
+    /* Flying Animation and Drop at Terminal */
     async function flyToTerminal(text: string, end = '\n') {
       const termBtn = $('#tab-terminal-btn') as HTMLElement;
       if (termBtn) termBtn.click();
+
+      if ((window as any).__fast) {
+        out(text, end);
+        return;
+      }
+
+      await sleep(140 / spd());
+
+      const srcEl = mark || edEl;
+      const srcRect = srcEl ? srcEl.getBoundingClientRect() : { left: 80, top: 140, width: 40, height: 24 };
+      const tgtScreen = screen || $('#screen');
+      const tgtRect = tgtScreen ? tgtScreen.getBoundingClientRect() : { left: 100, top: 400, width: 300, height: 80 };
+
+      const srcX = srcRect.left + (srcEl === mark ? 60 : srcRect.width / 2);
+      const srcY = srcRect.top + srcRect.height / 2;
+
+      // Calculate landing spot inside terminal
+      const lineCount = tgtScreen ? tgtScreen.children.length : 0;
+      const tgtX = Math.min(window.innerWidth - 90, Math.max(90, tgtRect.left + 75));
+      const tgtY = Math.min(window.innerHeight - 35, tgtRect.top + Math.min(tgtRect.height - 24, lineCount * 22 + 20));
+
+      const apexY = Math.max(20, Math.min(srcY, tgtY) - 130);
+      const midX = (srcX + tgtX) / 2;
+      const hoverY = tgtY - 65;
+
+      const preview = cut(text.replace(/\n/g, ' ↵ '), 18);
+
+      // Create flying capsule (clean text, no icons)
+      const flyer = document.createElement('div');
+      flyer.className = 'flyover-capsule p-term';
+      flyer.innerHTML = `
+        <div class="flyover-body">
+          <span class="flyover-term-badge">PRINT</span>
+          <span class="flyover-val">${esc(preview)}</span>
+        </div>
+        <div class="flyover-tail"></div>
+      `;
+      document.body.appendChild(flyer);
+
+      say_(
+        `**Output Flying:** Result <code>${esc(preview)}</code> terminal ki taraf fly ho raha hai...`
+      );
+
+      // STAGE A: HIGH ARCHED AERIAL FLIGHT OVER THE ARENA
+      const flyDuration = 520 / spd();
+      const flyAnim = flyer.animate(
+        [
+          { transform: `translate(${srcX}px, ${srcY}px) scale(0.65) rotate(-14deg)`, opacity: 0 },
+          { transform: `translate(${srcX + (midX - srcX) * 0.3}px, ${apexY + 25}px) scale(1.18) rotate(-8deg)`, opacity: 1, offset: 0.25 },
+          { transform: `translate(${midX}px, ${apexY}px) scale(1.3) rotate(4deg)`, opacity: 1, offset: 0.55 },
+          { transform: `translate(${tgtX - 10}px, ${hoverY - 8}px) scale(1.12) rotate(1deg)`, opacity: 1, offset: 0.85 },
+          { transform: `translate(${tgtX}px, ${hoverY}px) scale(1.05) rotate(0deg)`, opacity: 1, offset: 1 },
+        ],
+        {
+          duration: flyDuration,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        }
+      );
+      await flyAnim.finished;
+
+      // STAGE B: HOVER OVER TERMINAL
+      say_(
+        `**Terminal Lock:** Result <code>${esc(preview)}</code> terminal ke upar hover kar raha hai, ab drop hoga.`
+      );
+      await sleep(130 / spd());
+
+      // STAGE C: VERTICAL GRAVITATIONAL DROP DIRECTLY INTO TERMINAL
+      const dropDuration = 240 / spd();
+      const dropAnim = flyer.animate(
+        [
+          { transform: `translate(${tgtX}px, ${hoverY}px) scale(1.05)`, opacity: 1 },
+          { transform: `translate(${tgtX}px, ${tgtY - 8}px) scale(0.9, 1.25)`, opacity: 0.95, offset: 0.8 },
+          { transform: `translate(${tgtX}px, ${tgtY}px) scale(1.3, 0.45)`, opacity: 0, offset: 1 },
+        ],
+        {
+          duration: dropDuration,
+          easing: 'cubic-bezier(0.55, 0.055, 0.675, 0.19)',
+          fill: 'forwards',
+        }
+      );
+      await dropAnim.finished;
+      flyer.remove();
+
+      // STAGE D: IMPACT BURST & SHOCKWAVE ON TERMINAL
+      spawnDropSparks(tgtX, tgtY, 'p-term');
+      if (tgtScreen) {
+        tgtScreen.classList.add('terminal-impact');
+        setTimeout(() => tgtScreen.classList.remove('terminal-impact'), 450);
+      }
+
+      // Output arrives at terminal with landing animation
       out(text, end);
+      if (tgtScreen && tgtScreen.lastElementChild) {
+        tgtScreen.lastElementChild.classList.add('ln-landing');
+      }
+
+      say_(
+        `**Output Landed:** Result <code>${esc(preview)}</code> terminal me drop hokar print ho gaya.`
+      );
+      await sleep(280 / spd());
     }
 
     /* Terminal Output */
@@ -2411,160 +1993,63 @@ export default function App() {
     ];
 
     function highlightPython(text: string): string {
-      const escHtml = (s: string) =>
-        s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-
       const lines = text.split('\n');
-      return lines
-        .map((line) => {
-          let out = '';
-          let pos = 0;
-          while (pos < line.length) {
-            // 1. Comments
-            if (line[pos] === '#') {
-              out += `<span class="vsc-comment">${escHtml(line.slice(pos))}</span>`;
-              pos = line.length;
-              break;
-            }
-
-            // 2. Decorators: @identifier
-            if (line[pos] === '@') {
-              const decMatch = /^@[A-Za-z_]\w*/.exec(line.slice(pos));
-              if (decMatch) {
-                out += `<span class="vsc-fn">${escHtml(decMatch[0])}</span>`;
-                pos += decMatch[0].length;
-                continue;
-              }
-            }
-
-            // 3. String literals (including f, r, b, triple quotes, single/double quotes)
-            const strMatch = /^([fFrRbBuU]{0,2})("""[\s\S]*?"""|'''[\s\S]*?'''|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/.exec(line.slice(pos));
-            if (strMatch) {
-              const prefix = strMatch[1];
-              const rawStr = strMatch[2];
-              const isFString = /[fF]/.test(prefix);
-              if (prefix) {
-                out += `<span class="vsc-kw">${escHtml(prefix)}</span>`;
-              }
-              if (isFString && rawStr.includes('{') && rawStr.includes('}')) {
-                const quoteChar = rawStr[0];
-                out += `<span class="vsc-str">${escHtml(quoteChar)}</span>`;
-                const inner = rawStr.slice(1, -1);
-                let inBrace = false;
-                let braceBuf = '';
-                for (let chIdx = 0; chIdx < inner.length; chIdx++) {
-                  const ch = inner[chIdx];
-                  if (ch === '{' && inner[chIdx + 1] !== '{') {
-                    inBrace = true;
-                    out += `<span class="vsc-op">{</span>`;
-                    braceBuf = '';
-                  } else if (ch === '}' && inBrace) {
-                    inBrace = false;
-                    out += `<span class="vsc-id">${escHtml(braceBuf)}</span>`;
-                    out += `<span class="vsc-op">}</span>`;
-                  } else if (inBrace) {
-                    braceBuf += ch;
-                  } else {
-                    out += `<span class="vsc-str">${escHtml(ch)}</span>`;
-                  }
-                }
-                out += `<span class="vsc-str">${escHtml(quoteChar)}</span>`;
-              } else {
-                out += `<span class="vsc-str">${escHtml(rawStr)}</span>`;
-              }
-              pos += strMatch[0].length;
-              continue;
-            }
-
-            // 4. Numbers (hex, binary, float, int)
-            const numMatch = /^(0[xX][0-9a-fA-F]+|0[bB][01]+|\d+\.\d+(?:[eE][+-]?\d+)?|\.\d+(?:[eE][+-]?\d+)?|\d+)/.exec(line.slice(pos));
-            if (numMatch) {
-              out += `<span class="vsc-num">${escHtml(numMatch[0])}</span>`;
-              pos += numMatch[0].length;
-              continue;
-            }
-
-            // 5. Identifiers, Keywords, Builtins
-            const wordMatch = /^[A-Za-z_]\w*/.exec(line.slice(pos));
-            if (wordMatch) {
-              const word = wordMatch[0];
-              const afterWord = line.slice(pos + word.length);
-              const isFollowedByParen = /^\s*\(/.test(afterWord);
-              const beforeWord = line.slice(0, pos);
-              const isDef = /\bdef\s+$/.test(beforeWord);
-              const isClass = /\bclass\s+$/.test(beforeWord);
-
-              if (isDef) {
-                out += `<span class="vsc-fn font-semibold">${escHtml(word)}</span>`;
-              } else if (isClass) {
-                out += `<span class="vsc-class font-semibold">${escHtml(word)}</span>`;
-              } else if (/^(True|False|None)$/.test(word)) {
-                out += `<span class="vsc-bool">${escHtml(word)}</span>`;
-              } else if (/^(def|class|return|import|from|as|global|nonlocal|lambda|yield|async|await)$/.test(word)) {
-                out += `<span class="vsc-decl">${escHtml(word)}</span>`;
-              } else if (/^(if|elif|else|while|for|in|break|continue|pass|try|except|finally|raise|with|assert|is|not|and|or)$/.test(word)) {
-                out += `<span class="vsc-kw">${escHtml(word)}</span>`;
-              } else if (/^(self|cls)$/.test(word)) {
-                out += `<span class="vsc-self">${escHtml(word)}</span>`;
-              } else if (/^(print|input|len|range|int|str|float|bool|list|dict|set|tuple|abs|round|min|max|sum|sorted|enumerate|zip|type|all|any|map|filter|open|ord|chr|bin|hex|oct|format|dir|help|exit|quit|pow)$/.test(word)) {
-                out += `<span class="vsc-builtin">${escHtml(word)}</span>`;
-              } else if (isFollowedByParen) {
-                out += `<span class="vsc-fn">${escHtml(word)}</span>`;
-              } else {
-                out += `<span class="vsc-id">${escHtml(word)}</span>`;
-              }
-              pos += word.length;
-              continue;
-            }
-
-            // 6. Operators & Delimiters
-            const opMatch = /^(\*\*|\/\/=?|==|!=|<=|>=|\+=|-=|\*=|\/=|%=|[-+*\/%()\[\]{},:.=<>|&^~])/.exec(line.slice(pos));
-            if (opMatch) {
-              const op = opMatch[0];
-              if (/[()\[\]{},:.]/.test(op)) {
-                out += `<span class="vsc-punct">${escHtml(op)}</span>`;
-              } else {
-                out += `<span class="vsc-op">${escHtml(op)}</span>`;
-              }
-              pos += op.length;
-              continue;
-            }
-
-            // 7. Plain character (spaces, tabs, symbols)
-            out += escHtml(line[pos]);
-            pos++;
+      return lines.map(line => {
+        const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const commentIdx = line.indexOf('#');
+        let codePart = line;
+        let commentPart = '';
+        if (commentIdx !== -1) {
+          codePart = line.slice(0, commentIdx);
+          commentPart = line.slice(commentIdx);
+        }
+        const tokenRegex = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:def|if|elif|else|while|for|in|return|break|continue|pass|import|from|and|or|not|True|False|None)\b|\b(?:print|int|str|float|len|type|sum|max|min|range)\b|\b\d+(?:\.\d+)?\b|[+\-*/%=<>!&|,():[\]{}]|[a-zA-Z_]\w*|\s+|.)/g;
+        let match;
+        let html = '';
+        while ((match = tokenRegex.exec(codePart)) !== null) {
+          const tok = match[0];
+          if (!tok) continue;
+          if (/^\s+$/.test(tok)) {
+            html += tok.replace(/ /g, '&nbsp;');
+          } else if (/^["']/.test(tok)) {
+            html += `<span class="vsc-str">${escHtml(tok)}</span>`;
+          } else if (/^\d/.test(tok)) {
+            html += `<span class="vsc-num">${escHtml(tok)}</span>`;
+          } else if (/^(def|if|elif|else|while|for|in|return|break|continue|pass|import|from|and|or|not|True|False|None)$/.test(tok)) {
+            html += `<span class="vsc-kw">${escHtml(tok)}</span>`;
+          } else if (/^(print|int|str|float|len|type|sum|max|min|range)$/.test(tok)) {
+            html += `<span class="vsc-builtin">${escHtml(tok)}</span>`;
+          } else if (/^[+\-*/%=<>!&|,():[\]{}]$/.test(tok)) {
+            html += `<span class="vsc-op">${escHtml(tok)}</span>`;
+          } else if (/^[a-zA-Z_]\w*$/.test(tok)) {
+            html += `<span class="vsc-id">${escHtml(tok)}</span>`;
+          } else {
+            html += escHtml(tok);
           }
-          return out;
-        })
-        .join('\n');
+        }
+        if (commentPart) {
+          html += `<span class="vsc-comment">${escHtml(commentPart)}</span>`;
+        }
+        return html;
+      }).join('\n');
     }
 
     const exSelect = $('#ex') as HTMLSelectElement;
     if (exSelect && exSelect.options.length <= 1) {
-      CURRICULUM_MODULES.forEach((mod) => {
-        const og = document.createElement('optgroup');
-        og.label = `Module ${mod.moduleNumber}: ${mod.title}`;
-        mod.topics.forEach((top) => {
-          const o = document.createElement('option');
-          o.value = top.id;
-          o.textContent = `${top.topicNumber} ${top.title}`;
-          og.append(o);
-        });
-        exSelect.append(og);
+      U.forEach((x, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = x[0];
+        exSelect.append(o);
       });
       exSelect.onchange = () => {
-        const topId = exSelect.value;
-        if (!topId) return;
-        for (const m of CURRICULUM_MODULES) {
-          const found = m.topics.find((t) => t.id === topId);
-          if (found) {
-            code.value = found.guide.codeExample;
-            updateHighlight();
-            reset();
-            say_('**Topic ' + found.topicNumber + ':** ' + found.intro.summary);
-            break;
-          }
-        }
+        const i = exSelect.value;
+        if (i === '') return;
+        code.value = U[+i][2];
+        const highlightEl = $('#code-highlight');
+        if (highlightEl) highlightEl.innerHTML = highlightPython(code.value);
+        reset();
+        say_('**Goal:** ' + U[+i][1]);
       };
     }
 
@@ -2636,20 +2121,16 @@ export default function App() {
         .join('\n');
 
     function doneMsg() {
-      if (pred === null) return lang === 'urdulish' ? '**Mukammal:** Code kamyabi se execute ho gaya.' : '**Finished:** Execution sequence complete.';
+      if (pred === null) return '**Finished:** Execution sequence complete.';
       const ok = norm(OUTTXT) === norm(pred);
       pred = null;
-      return ok
-        ? (lang === 'urdulish' ? '**Sahi Andaza!** Output andazay ke bilkul mutabiq hai.' : '**Prediction Correct!** Output matches prediction.')
-        : (lang === 'urdulish' ? '**Ghalat Andaza:** Terminal output ke sath mawazna karein.' : '**Prediction Mismatch:** Compare with terminal output.');
+      return ok ? '**Prediction Correct!** Output matches prediction.' : '**Prediction Mismatch:** Compare with terminal output.';
     }
 
     function drawGut() {
       const n = code.value.split('\n').length;
       gut.textContent = Array.from({ length: n }, (_, i) => i + 1).join('\n');
-      const targetH = Math.max(n * LH + 16, edEl.clientHeight || 200) + 'px';
-      code.style.height = targetH;
-      if (highlightEl) highlightEl.style.height = targetH;
+      code.style.height = n * LH + 12 + 'px';
       const hasTurtle = /\bturtle\b/.test(code.value);
       if (hasTurtle) {
         setActiveTab('turtle');
@@ -2661,12 +2142,7 @@ export default function App() {
       if (wait) wait();
       wait = null;
       running = false;
-      setIsRunning(false);
-      setIsPaused(false);
       steps = 0;
-      historyFrames = [];
-      historyIdx = -1;
-      updateStepCounter();
       G.vars = {};
       stack = [G];
       envN = 0;
@@ -2681,23 +2157,16 @@ export default function App() {
       renderTrace();
       OUTTXT = '';
       setMeta({ type: 'idle' });
-      say_(lang === 'urdulish' ? '**Python Studio:** Code likhein aur **Run Karein** ya **Agay** dabayein.' : '**Python Studio:** Enter code and press **Run** or **Step**.');
+      say_('**Python Studio:** Enter code and press **Run** or **Step**.');
       drawGut();
     }
 
     async function start(m: string, src: string) {
-      if (!src || !src.trim()) {
-        say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya curriculum se topic muntakhib karein.' : '**Notice:** Please enter code in the editor or select a topic.');
-        return;
-      }
       reset();
       cur = gen;
       mode = m;
       auto = m === 'step';
       running = true;
-      setIsRunning(true);
-      setIsPaused(m === 'step');
-      updateStepCounter();
       out('python main.py', '\n', false, true);
       try {
         const prog = parseProgram(src);
@@ -2705,181 +2174,81 @@ export default function App() {
         if (cur === gen) {
           curSpan = null;
           mark.style.opacity = '0';
-          const finMsg = doneMsg();
-          say_(finMsg);
-          const endSnap = captureSnapshot(curLn);
-          endSnap.say = finMsg;
-          historyFrames.push(endSnap);
-          historyIdx = historyFrames.length - 1;
-          updateStepCounter();
+          say_(doneMsg());
         }
       } catch (e: any) {
         if (e === CANCEL) return;
+        if (!(e instanceof PyErr)) throw e;
         curSpan = null;
-        const errType = e instanceof PyErr ? e.t : (e.name || 'RuntimeError');
-        const errMsg = e instanceof PyErr ? e.m : (e.message || String(e));
         const ln = lnOf(e);
         out('Traceback (most recent call last):', '\n', true, true);
         out(`  File "main.py"${ln !== undefined ? ', line ' + (ln + 1) : ''}`, '\n', true, true);
-        out(`${errType}: ${errMsg}`, '\n', true);
-        liveErr({ t: errType, m: errMsg, ln });
-        const errSnap = captureSnapshot(ln !== undefined ? ln : 0, true);
-        errSnap.say = `**Error (${esc(errType)})**: ${esc(errMsg)}`;
-        historyFrames.push(errSnap);
-        historyIdx = historyFrames.length - 1;
-        updateStepCounter();
+        out(e.t + ': ' + e.m, '\n', true);
+        liveErr(e);
       } finally {
-        if (cur === gen) {
-          running = false;
-          setIsRunning(false);
-          setIsPaused(false);
-        }
-        updateStepCounter();
+        if (cur === gen) running = false;
       }
     }
 
-    const handleRun = () => {
-      const srcCode = code ? code.value : '';
-      if (!srcCode.trim()) {
-        say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya curriculum se topic muntakhib karein.' : '**Notice:** Please enter code in the editor or select a topic.');
-        return;
-      }
-      if (running) {
-        if (mode === 'step') {
+    const runBtn = $('#run');
+    if (runBtn) {
+      runBtn.onclick = () => {
+        if (running) {
           mode = 'run';
-          if (historyIdx < historyFrames.length - 1) {
-            historyIdx = historyFrames.length - 1;
-            restoreSnapshot(historyFrames[historyIdx]);
-          }
-          setIsPaused(false);
-          updateStepCounter();
           if (wait) wait();
           return;
         }
-        mode = 'step';
-        setIsPaused(true);
-        updateStepCounter();
-        return;
-      }
-      const prInput = $('#pr') as HTMLInputElement;
-      if (prInput?.checked) {
-        const pt = $('#pt') as HTMLTextAreaElement;
-        if (pt) pt.value = '';
-        $('#pred')?.classList.add('on');
-        pt?.focus();
-      } else {
-        start('run', srcCode);
-      }
-    };
-
-    const handleStepBack = () => {
-      if (running && mode === 'run') {
-        mode = 'step';
-        setIsPaused(true);
-      }
-      if (historyIdx > 0) {
-        historyIdx--;
-        restoreSnapshot(historyFrames[historyIdx]);
-        updateStepCounter();
-      }
-    };
-
-    const handleStep = () => {
-      if (historyIdx < historyFrames.length - 1) {
-        historyIdx++;
-        restoreSnapshot(historyFrames[historyIdx]);
-        updateStepCounter();
-        return;
-      }
-
-      if (running) {
-        mode = 'step';
-        setIsPaused(true);
-        if (wait) wait();
-      } else {
-        const srcCode = code ? code.value : '';
-        if (!srcCode.trim()) {
-          say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya topic muntakhib karein.' : '**Notice:** Please enter code first.');
-          return;
+        const prInput = $('#pr') as HTMLInputElement;
+        if (prInput?.checked) {
+          const pt = $('#pt') as HTMLTextAreaElement;
+          if (pt) pt.value = '';
+          $('#pred')?.classList.add('on');
+          pt?.focus();
+        } else {
+          start('run', code.value);
         }
-        start('step', srcCode);
-      }
-    };
-
-    const handleReset = () => {
-      reset();
-    };
-
-    const handleClear = () => {
-      if (screen) screen.innerHTML = '';
-      curSpan = null;
-      OUTTXT = '';
-    };
-
-    const handlePredictGo = () => {
-      const pt = $('#pt') as HTMLTextAreaElement;
-      pred = pt ? pt.value : '';
-      $('#pred')?.classList.remove('on');
-      const srcCode = code ? code.value : '';
-      start('run', srcCode);
-    };
-
-    const handlePredictCancel = () => {
-      $('#pred')?.classList.remove('on');
-    };
-
-    const handleSelectTopic = (topId: string) => {
-      if (!topId) return;
-      setSelectedTopic(topId);
-      for (const m of CURRICULUM_MODULES) {
-        const found = m.topics.find((t) => t.id === topId);
-        if (found) {
-          if (code) {
-            code.value = found.guide.codeExample;
-            updateHighlight();
-            drawGut();
-          }
-          reset();
-          const summary = (lang === 'urdulish' || (lang as string) === 'hinglish')
-            ? (TOPIC_URDULISH[found.id]?.summary || found.intro.summary)
-            : found.intro.summary;
-          say_(`**Topic ${found.topicNumber}:** ${summary}`);
-          break;
-        }
-      }
-    };
-
-    runnerActionsRef.current = {
-      run: handleRun,
-      stepBack: handleStepBack,
-      step: handleStep,
-      reset: handleReset,
-      clear: handleClear,
-      predictGo: handlePredictGo,
-      predictCancel: handlePredictCancel,
-      selectTopic: handleSelectTopic,
-    };
-
-    const runBtn = $('#run');
-    if (runBtn) runBtn.onclick = handleRun;
+      };
+    }
 
     const pgoBtn = $('#pgo');
-    if (pgoBtn) pgoBtn.onclick = handlePredictGo;
+    if (pgoBtn) {
+      pgoBtn.onclick = () => {
+        const pt = $('#pt') as HTMLTextAreaElement;
+        pred = pt ? pt.value : '';
+        $('#pred')?.classList.remove('on');
+        start('run', code.value);
+      };
+    }
 
     const pnoBtn = $('#pno');
-    if (pnoBtn) pnoBtn.onclick = handlePredictCancel;
+    if (pnoBtn) {
+      pnoBtn.onclick = () => $('#pred')?.classList.remove('on');
+    }
 
     const clrBtn = $('#clr');
-    if (clrBtn) clrBtn.onclick = handleClear;
-
-    const stepBackBtn = $('#step-back');
-    if (stepBackBtn) stepBackBtn.onclick = handleStepBack;
+    if (clrBtn) {
+      clrBtn.onclick = () => {
+        screen.innerHTML = '';
+        curSpan = null;
+      };
+    }
 
     const stepBtn = $('#step');
-    if (stepBtn) stepBtn.onclick = handleStep;
+    if (stepBtn) {
+      stepBtn.onclick = () => {
+        if (running) {
+          mode = 'step';
+          if (wait) wait();
+        } else {
+          start('step', code.value);
+        }
+      };
+    }
 
     const resetBtn = $('#reset');
-    if (resetBtn) resetBtn.onclick = handleReset;
+    if (resetBtn) {
+      resetBtn.onclick = reset;
+    }
 
     const VOID_TAGS = new Set([
       'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
@@ -2895,14 +2264,13 @@ export default function App() {
 
     const handleInput = () => {
       updateHighlight();
-      drawGut();
       reset();
     };
 
     const handleScroll = () => {
       if (highlightEl) {
-        highlightEl.scrollTop = edEl.scrollTop;
-        highlightEl.scrollLeft = edEl.scrollLeft;
+        highlightEl.scrollTop = code.scrollTop;
+        highlightEl.scrollLeft = code.scrollLeft;
       }
     };
 
@@ -2911,13 +2279,6 @@ export default function App() {
       const start = code.selectionStart;
       const end = code.selectionEnd;
       const val = code.value;
-
-      // Ctrl+Enter or Cmd+Enter to Run Code
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleRun();
-        return;
-      }
 
       // 1. Tab key always indents 4 spaces
       if (e.key === 'Tab') {
@@ -3104,26 +2465,10 @@ export default function App() {
 
     code.addEventListener('input', handleInput);
     code.addEventListener('scroll', handleScroll);
-    edEl.addEventListener('scroll', handleScroll);
     code.addEventListener('keydown', handleKeydown);
-
-    loadCodeRef.current = (codeStr: string, autoRun = false) => {
-      if (!code) return;
-      code.value = codeStr;
-      updateHighlight();
-      drawGut();
-      reset();
-      setViewMode('studio');
-      if (autoRun) {
-        setTimeout(() => {
-          start('run', codeStr);
-        }, 150);
-      }
-    };
 
     code.value = DEFAULT;
     updateHighlight();
-    drawGut();
     reset();
 
     return () => {
@@ -3131,373 +2476,154 @@ export default function App() {
       if (wait) wait();
       code.removeEventListener('input', handleInput);
       code.removeEventListener('scroll', handleScroll);
-      edEl.removeEventListener('scroll', handleScroll);
       code.removeEventListener('keydown', handleKeydown);
     };
   }, []);
 
   return (
-    <div
-      ref={containerRef}
-      className={`flex flex-col h-screen h-[100dvh] w-full overflow-hidden transition-colors duration-200 ${
-        theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-[#090e17] text-slate-100'
-      }`}
-    >
-      {/* Universal Navigation Header */}
-      <header className="tb justify-between shrink-0 select-none">
-        <div className="flex items-center gap-3">
-          <b className={`tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
-            Python Practice Lab
-          </b>
-          <div
-            className={`flex items-center p-1 rounded-full border ${
-              theme === 'light'
-                ? 'bg-slate-100 border-slate-300'
-                : 'bg-[#10192a] border-slate-700/80'
-            }`}
-          >
+    <div ref={containerRef} className="app">
+      {/* Top Header & Actions */}
+      <div className="tb">
+        <b>Python Studio</b>
+        <select id="ex" aria-label="Examples">
+          <option value="">Curriculum Examples</option>
+        </select>
+        <button className="go" id="run">
+          Run
+        </button>
+        <button id="step">Step</button>
+        <button id="reset">Reset</button>
+        <label className="ck">
+          <input type="checkbox" id="pr" /> Predict Output
+        </label>
+        <label className="ck">
+          Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
+        </label>
+      </div>
+
+      {/* Editor & Metaphor Arena */}
+      <div className="work">
+        <aside className="edp">
+          <div className="tab-bar">
+            <div className="tab">main.py</div>
             <button
               type="button"
-              onClick={() => setViewMode('curriculum')}
-              className={`px-3.5 py-1 rounded-full text-xs font-bold transition ${
-                viewMode === 'curriculum'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
-                  : 'text-slate-300 hover:text-white bg-transparent border-0'
-              }`}
+              className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
+              onClick={() => setAutoTagCloser((prev) => !prev)}
+              title="Toggle Auto Tag Closer and Auto Pair Closer"
             >
-              {t.curriculumBtn}
-            </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('studio')}
-              className={`px-3.5 py-1 rounded-full text-xs font-bold transition ${
-                viewMode === 'studio'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
-                  : 'text-slate-300 hover:text-white bg-transparent border-0'
-              }`}
-            >
-              {t.studioBtn}
+              Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
             </button>
           </div>
-        </div>
+          <div className="ed">
+            <div className="mark" id="mark" />
+            <div className="gut" id="gut" />
+            <pre id="code-highlight" aria-hidden="true"></pre>
+            <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
+          </div>
+        </aside>
 
-        <div className="flex items-center gap-2">
-          {viewMode === 'studio' ? (
-            <>
-              <select
-                id="ex"
-                aria-label="Curriculum Topics"
-                style={{ maxWidth: '240px' }}
-                value={selectedTopic}
-                onChange={(e) => {
-                  setSelectedTopic(e.target.value);
-                  runnerActionsRef.current.selectTopic(e.target.value);
-                }}
-              >
-                <option value="">{t.chooseTopic}</option>
-                {CURRICULUM_MODULES.map((mod) => (
-                  <optgroup key={mod.id} label={`Module ${mod.moduleNumber}: ${mod.title}`}>
-                    {mod.topics.map((top) => (
-                      <option key={top.id} value={top.id}>
-                        {top.topicNumber} {top.title}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <button
-                className={`go ${isRunning ? 'running' : ''}`}
-                id="run"
-                title="Run / Play / Pause (Ctrl+Enter)"
-                type="button"
-                onClick={() => runnerActionsRef.current.run()}
-              >
-                {isRunning
-                  ? (isPaused ? (lang === 'urdulish' ? 'Chalaein' : 'Resume') : (lang === 'urdulish' ? 'Rokein' : 'Pause'))
-                  : t.runBtn}
-              </button>
-              <button
-                id="step-back"
-                title="Step Backward"
-                type="button"
-                disabled={!canStepBack}
-                onClick={() => runnerActionsRef.current.stepBack()}
-              >
-                {t.stepBackBtn}
-              </button>
-              <button
-                id="step"
-                title="Step Forward"
-                type="button"
-                disabled={!canStepForward}
-                onClick={() => runnerActionsRef.current.step()}
-              >
-                {t.stepBtn}
-              </button>
-              <span id="step-counter" title="Current Step / Total Steps">
-                {stepCounterText || `${t.stepCounterLabel} 0 / 0`}
-              </span>
-              <button
-                id="reset"
-                title="Reset"
-                type="button"
-                onClick={() => runnerActionsRef.current.reset()}
-              >
-                {t.resetBtn}
-              </button>
-              <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                <input type="checkbox" id="pr" /> {t.predictLabel}
-              </label>
-              <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                {t.speedLabel} <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
-              </label>
-            </>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setViewMode('studio')}
-              className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition shadow"
-            >
-              {t.openStudioBtn}
-            </button>
-          )}
-
-          {/* Language Switcher */}
-          <div
-            className={`flex items-center p-0.5 rounded-full border text-xs font-bold ${
-              theme === 'light'
-                ? 'bg-slate-100 border-slate-300'
-                : 'bg-slate-800 border-slate-700'
-            }`}
-            title="Language (Zaban): English or Urdulish (Roman Urdu)"
-          >
-            <button
-              type="button"
-              onClick={() => setLang('en')}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${
-                lang === 'en'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
-                  : 'text-slate-300 hover:text-white bg-transparent border-0'
-              }`}
-            >
-              EN
-            </button>
-            <button
-              type="button"
-              onClick={() => setLang('urdulish')}
-              className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${
-                lang === 'urdulish'
-                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
-                  : theme === 'light'
-                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
-                  : 'text-slate-300 hover:text-white bg-transparent border-0'
-              }`}
-            >
-              Urdulish
-            </button>
+        <main className="viz">
+          {/* Mascot Guidance */}
+          <div className="mascot">
+            <div id="say"></div>
           </div>
 
-          {/* Theme Toggle Button */}
+          {/* Living Metaphor Theater */}
+          <div className="meta-theater">
+            {/* Concept Stage (Dynamic Metaphor Action) */}
+            <div className="meta-stage">
+              <div className="stage-title">
+                <span>Active Concept Animation</span>
+                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
+                  Decision Gates · Orbit Loops · Fusion Streams
+                </span>
+              </div>
+              <div className="stage-view" id="meta-stage-view"></div>
+            </div>
+
+            {/* Professional Memory Entries Deck */}
+            <div className="meta-vessels-deck">
+              <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span>Live Memory Entries</span>
+                  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
+                    Target Mention ➔ Value Drop Animation
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`auto-closer-toggle ${memHistoryOn ? 'on' : ''}`}
+                  onClick={() => {
+                    setMemHistoryOn((prev) => {
+                      const next = !prev;
+                      setTimeout(() => renderVesselsRef.current(), 10);
+                      return next;
+                    });
+                  }}
+                  title="Toggle Variable History Breadcrumbs"
+                >
+                  History: {memHistoryOn ? 'ON' : 'OFF'}
+                </button>
+              </div>
+              <div className="vessels-grid" id="vessels"></div>
+            </div>
+          </div>
+        </main>
+      </div>
+
+      {/* Output Deck */}
+      <div className="term-deck">
+        <div className="deck-tabs">
           <button
-            type="button"
-            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            className={`text-xs px-3 py-1.5 rounded-full font-bold border transition ${
-              theme === 'light'
-                ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
-                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
-            }`}
-            title="Toggle Light or Dark Mode"
+            id="tab-terminal-btn"
+            className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
+            onClick={() => setActiveTab('terminal')}
           >
-            {theme === 'light' ? t.darkMode : t.lightMode}
+            Terminal Output
+          </button>
+          <button
+            className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
+            onClick={() => setActiveTab('trace')}
+          >
+            Trace Table
+          </button>
+          <button
+            className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
+            onClick={() => setActiveTab('turtle')}
+          >
+            Turtle Canvas
+          </button>
+          <button id="clr" style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
+            Clear Output
           </button>
         </div>
-      </header>
 
-      {/* Main Container */}
-      <div className="flex-1 min-h-0 relative overflow-hidden">
-        {/* Curriculum Page View */}
-        <div
-          style={{ display: viewMode === 'curriculum' ? 'block' : 'none' }}
-          className="h-full w-full overflow-hidden"
-        >
-          <CurriculumPage
-            theme={theme}
-            lang={lang}
-            onLoadCodeIntoStudio={(code) => loadCodeRef.current(code, true)}
-            onCloseToStudio={() => setViewMode('studio')}
-          />
+        <div className="term-screen screen" id="screen" style={{ display: activeTab === 'terminal' ? 'block' : 'none' }} aria-live="polite" />
+        <div id="tr" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: activeTab === 'trace' ? 'block' : 'none', padding: '8px' }} />
+        <div style={{ flex: 1, minHeight: 0, display: activeTab === 'turtle' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+          <svg id="tsvg" viewBox="0 0 400 400" style={{ width: '100%', height: '100%', maxHeight: '200px' }}>
+            <line className="ax" x1="200" y1="0" x2="200" y2="400" />
+            <line className="ax" x1="0" y1="200" x2="400" y2="200" />
+            <g id="tl" />
+            <polygon id="spr" points="14,0 -9,8 -9,-8" />
+          </svg>
         </div>
+      </div>
 
-        {/* Python Studio Interactive Workspace */}
-        <div
-          style={{ display: viewMode === 'studio' ? 'grid' : 'none' }}
-          className="app"
-        >
-          {/* Sub Toolbar when in Studio */}
-          <div className="tb" style={{ background: theme === 'light' ? '#f1f5f9' : '#111a2c', padding: '6px 16px', fontSize: '13px', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b' }}>
-            <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Workspace:</span>
-            <span className="text-xs font-semibold text-emerald-500">{t.workspaceVisualizer}</span>
-            <span className={theme === 'light' ? 'text-slate-300' : 'text-slate-600'}>|</span>
-            <button
-              type="button"
-              onClick={() => setViewMode('curriculum')}
-              className={`text-xs px-2.5 py-0.5 rounded-md border ${
-                theme === 'light'
-                  ? 'text-slate-700 hover:text-slate-900 bg-white border-slate-300'
-                  : 'text-slate-300 hover:text-white bg-slate-800 border-slate-700'
-              }`}
-            >
-              {t.browseLessons}
+      {/* Predict Modal */}
+      <div className="modal" id="pred">
+        <div className="mbox">
+          <h3>Predict Before Running</h3>
+          <p style={{ color: 'var(--mute)', fontSize: '14px', margin: '4px 0 12px' }}>
+            Is code ka output kya aayega? Neeche type karo, phir run karke compare karo.
+          </p>
+          <textarea id="pt" rows={4} aria-label="Prediction input" />
+          <div className="mb">
+            <button className="go" id="pgo">
+              Verify Prediction
             </button>
-          </div>
-
-          {/* Editor & Metaphor Arena */}
-          <div className="work">
-            <aside className="edp">
-              <div className="tab-bar">
-                <div className="tab">main.py</div>
-                <button
-                  type="button"
-                  className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
-                  onClick={() => setAutoTagCloser((prev) => !prev)}
-                  title="Toggle Auto Tag Closer and Auto Pair Closer"
-                >
-                  Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
-                </button>
-              </div>
-              <div className="ed">
-                <div className="mark" id="mark" />
-                <div className="gut" id="gut" />
-                <pre id="code-highlight" aria-hidden="true"></pre>
-                <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
-              </div>
-            </aside>
-
-            <main className="viz">
-              {/* Mascot Guidance */}
-              <div className="mascot">
-                <div id="say"></div>
-              </div>
-
-              {/* Living Metaphor Theater */}
-              <div className="meta-theater">
-                {/* Concept Stage (Dynamic Metaphor Action) */}
-                <div className="meta-stage">
-                  <div className="stage-title">
-                    <span>{t.activeConceptAnimation}</span>
-                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
-                      Decision Gates · Orbit Loops · Fusion Streams
-                    </span>
-                  </div>
-                  <div className="stage-view" id="meta-stage-view"></div>
-                </div>
-
-                {/* Professional Memory Entries Deck */}
-                <div className="meta-vessels-deck">
-                  <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <span>{t.liveMemoryEntries}</span>
-                      <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
-                        Target Mention {'->'} Value Drop Animation
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      className={`auto-closer-toggle ${memHistoryOn ? 'on' : ''}`}
-                      onClick={() => {
-                        setMemHistoryOn((prev) => {
-                          const next = !prev;
-                          setTimeout(() => renderVesselsRef.current(), 10);
-                          return next;
-                        });
-                      }}
-                      title="Toggle Variable History Breadcrumbs"
-                    >
-                      History: {memHistoryOn ? 'ON' : 'OFF'}
-                    </button>
-                  </div>
-                  <div className="vessels-grid" id="vessels"></div>
-                </div>
-              </div>
-            </main>
-          </div>
-
-          {/* Output Deck — Always Stays Black */}
-          <div className="term-deck">
-            <div className="deck-tabs">
-              <button
-                id="tab-terminal-btn"
-                className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
-                onClick={() => setActiveTab('terminal')}
-              >
-                {t.terminalTab}
-              </button>
-              <button
-                className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
-                onClick={() => setActiveTab('trace')}
-              >
-                {t.traceTab}
-              </button>
-              <button
-                className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
-                onClick={() => setActiveTab('turtle')}
-              >
-                {t.turtleTab}
-              </button>
-              <button
-                id="clr"
-                type="button"
-                onClick={() => runnerActionsRef.current.clear()}
-                style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}
-              >
-                {t.clearOutput}
-              </button>
-            </div>
-
-            <div className="term-screen screen" id="screen" style={{ display: activeTab === 'terminal' ? 'block' : 'none' }} aria-live="polite" />
-            <div id="tr" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: activeTab === 'trace' ? 'block' : 'none', padding: '8px' }} />
-            <div style={{ flex: 1, minHeight: 0, display: activeTab === 'turtle' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-              <svg id="tsvg" viewBox="0 0 400 400" style={{ width: '100%', height: '100%', maxHeight: '200px' }}>
-                <line className="ax" x1="200" y1="0" x2="200" y2="400" />
-                <line className="ax" x1="0" y1="200" x2="400" y2="200" />
-                <g id="tl" />
-                <polygon id="spr" points="14,0 -9,8 -9,-8" />
-              </svg>
-            </div>
-          </div>
-
-          {/* Predict Modal */}
-          <div className="modal" id="pred">
-            <div className="mbox">
-              <h3>{t.predictTitle}</h3>
-              <p style={{ color: 'var(--mute)', fontSize: '14px', margin: '4px 0 12px' }}>
-                {t.predictPrompt}
-              </p>
-              <textarea id="pt" rows={4} aria-label="Prediction input" />
-              <div className="mb">
-                <button
-                  className="go"
-                  id="pgo"
-                  type="button"
-                  onClick={() => runnerActionsRef.current.predictGo()}
-                >
-                  {t.verifyPrediction}
-                </button>
-                <button
-                  id="pno"
-                  type="button"
-                  onClick={() => runnerActionsRef.current.predictCancel()}
-                >
-                  {t.cancelBtn}
-                </button>
-              </div>
-            </div>
+            <button id="pno">Cancel</button>
           </div>
         </div>
       </div>

@@ -19,198 +19,12 @@
 }
 
 [data-theme="light"] {
-  --bg: #f8fafc;
+  --bg: #f0f4f8;
   --panel: #ffffff;
   --ink: #0f172a;
   --mute: #64748b;
-  --line: #e2e8f0;
-  --screen: #0f172a;
-  --screenink: #38bdf8;
-  --num: #d97706;
-  --numink: #ffffff;
-  --str: #9333ea;
-  --strink: #ffffff;
-  --ok: #059669;
-  --bad: #dc2626;
-  --glow: rgba(5, 150, 105, 0.15);
-}
-
-[data-theme="light"] .tb {
-  background: #ffffff;
-  color: #0f172a;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-[data-theme="light"] .tb b {
-  color: #0f172a !important;
-}
-
-[data-theme="light"] .tb select {
-  background: #f1f5f9;
-  color: #0f172a;
-  border: 1px solid #cbd5e1;
-}
-
-[data-theme="light"] .meta-theater {
-  background: #f8fafc;
-}
-
-[data-theme="light"] .meta-stage,
-[data-theme="light"] .meta-vessels-deck {
-  background: #ffffff;
-  border-color: #e2e8f0;
-}
-
-[data-theme="light"] button {
-  background: #ffffff;
-  color: #0f172a;
-  border-color: #cbd5e1;
-}
-
-[data-theme="light"] button:hover {
-  background: #f1f5f9;
-  color: #0f172a;
-}
-
-/* ========================================================
-   CODEBASE (EDITOR) & TERMINAL — ALWAYS STAY BLACK
-   ======================================================== */
-
-.edp,
-[data-theme="light"] .edp {
-  background: #0f172a !important;
-  border-right: 1px solid #1e293b !important;
-}
-
-.edp .tab-bar,
-[data-theme="light"] .edp .tab-bar {
-  background: #0f172a !important;
-  border-bottom: 1px solid #1e293b !important;
-}
-
-.edp .tab,
-[data-theme="light"] .edp .tab {
-  background: #090e17 !important;
-  color: #94a3b8 !important;
-  border-bottom: 2px solid var(--num) !important;
-}
-
-.edp .auto-closer-toggle,
-[data-theme="light"] .edp .auto-closer-toggle {
-  background: #1e293b !important;
-  border-color: #334155 !important;
-  color: #94a3b8 !important;
-}
-
-.edp .auto-closer-toggle.on,
-[data-theme="light"] .edp .auto-closer-toggle.on {
-  border-color: var(--ok) !important;
-  color: var(--ok) !important;
-  background: rgba(16, 185, 129, 0.15) !important;
-}
-
-.edp .ed,
-[data-theme="light"] .edp .ed {
-  background: #090e17 !important;
-}
-
-.edp .gut,
-[data-theme="light"] .edp .gut {
-  color: #64748b !important;
-}
-
-.edp textarea#code,
-[data-theme="light"] .edp textarea#code {
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
-  caret-color: #38bdf8 !important;
-  background: transparent !important;
-}
-
-.edp pre#code-highlight,
-[data-theme="light"] .edp pre#code-highlight {
-  background: transparent !important;
-}
-
-/* Terminal & Output Deck — Always Stays Black */
-.term-deck,
-[data-theme="light"] .term-deck {
-  background: #090e17 !important;
-  border-top: 1px solid #1e293b !important;
-}
-
-.deck-tabs,
-[data-theme="light"] .deck-tabs {
-  background: #0f172a !important;
-  border-bottom: 1px solid #1e293b !important;
-}
-
-.deck-tab-btn,
-[data-theme="light"] .deck-tab-btn {
-  color: #94a3b8 !important;
-  background: transparent !important;
-}
-
-.deck-tab-btn.active,
-[data-theme="light"] .deck-tab-btn.active {
-  color: #38bdf8 !important;
-  border-bottom-color: #38bdf8 !important;
-  background: transparent !important;
-}
-
-.term-screen,
-#screen,
-.screen,
-[data-theme="light"] .term-screen,
-[data-theme="light"] #screen,
-[data-theme="light"] .screen {
-  background: #050811 !important;
-  color: #6ee7b7 !important;
-}
-
-.screen .ln,
-[data-theme="light"] .screen .ln {
-  color: #f1f5f9 !important;
-}
-
-.screen .pr,
-[data-theme="light"] .screen .pr {
-  color: #34d399 !important;
-}
-
-.screen .err,
-[data-theme="light"] .screen .err {
-  color: #f87171 !important;
-}
-
-#tr,
-[data-theme="light"] #tr {
-  background: #090e17 !important;
-  color: #cbd5e1 !important;
-}
-
-#tt,
-[data-theme="light"] #tt {
-  color: #cbd5e1 !important;
-}
-
-#tt th,
-[data-theme="light"] #tt th {
-  background: #1e293b !important;
-  color: #94a3b8 !important;
-  border-bottom: 1px solid #334155 !important;
-}
-
-#tt td,
-[data-theme="light"] #tt td {
-  border-bottom: 1px solid #1e293b !important;
-  color: #cbd5e1 !important;
-}
-
-#tt td.ch,
-[data-theme="light"] #tt td.ch {
-  background: rgba(245, 158, 11, 0.25) !important;
-  color: #fde68a !important;
+  --line: #cbd5e1;
+  --screen: #0b1120;
 }
 
 * {
@@ -230,7 +44,8 @@ body {
 }
 
 .app {
-  height: 100%;
+  height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) 26%;
   min-width: 0;
@@ -399,35 +214,18 @@ button.go:hover {
 
 textarea#code {
   display: block;
-  position: relative;
   width: 100%;
-  margin: 0;
-  padding: 6px 10px 6px 46px;
-  box-sizing: border-box;
-  font-family: "JetBrains Mono", Consolas, "Courier New", monospace !important;
-  font-size: 14px !important;
-  line-height: 24px !important;
-  font-weight: 500 !important;
-  letter-spacing: normal !important;
-  tab-size: 4 !important;
-  white-space: pre !important;
-  word-break: normal !important;
-  word-wrap: normal !important;
-  resize: none;
+  height: auto;
+  min-height: 100%;
   border: 0;
-  outline: none;
+  background: transparent;
+  color: var(--ink);
+  font: 700 14px/24px "JetBrains Mono", monospace;
+  padding: 6px 10px 6px 46px;
+  resize: none;
+  white-space: pre;
   overflow: hidden;
-  z-index: 2;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
-  caret-color: #38bdf8 !important;
-  background: transparent !important;
-}
-
-textarea#code::selection {
-  background: rgba(56, 189, 248, 0.35) !important;
-  color: transparent !important;
-  -webkit-text-fill-color: transparent !important;
+  outline: none;
 }
 
 /* Main Visualizer Area */
@@ -1880,92 +1678,38 @@ textarea#code::selection {
   margin-top: 14px;
 }
 
-/* Authentic VS Code Dark+ Code Editor & Syntax Highlighting */
+/* VS Code Syntax Highlighting */
 #code-highlight {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100%;
+  right: 0;
+  bottom: 0;
   margin: 0;
   padding: 6px 10px 6px 46px;
-  box-sizing: border-box;
-  font-family: "JetBrains Mono", Consolas, "Courier New", monospace !important;
-  font-size: 14px !important;
-  line-height: 24px !important;
-  font-weight: 500 !important;
-  letter-spacing: normal !important;
-  tab-size: 4 !important;
-  white-space: pre !important;
-  word-break: normal !important;
-  word-wrap: normal !important;
-  overflow: hidden;
+  font: 700 14px/24px "JetBrains Mono", monospace;
+  color: var(--ink);
   pointer-events: none;
+  white-space: pre;
+  overflow: hidden;
   z-index: 1;
-  color: #d4d4d4;
+}
+
+textarea#code {
+  color: transparent !important;
+  caret-color: var(--ink);
   background: transparent !important;
+  position: relative;
+  z-index: 2;
 }
 
-/* Authentic VS Code Dark+ Syntax Colors */
-.vsc-kw { color: #c586c0 !important; font-weight: 600; }
-.vsc-decl { color: #569cd6 !important; font-weight: 600; }
-.vsc-builtin { color: #dcdcaa !important; font-weight: 500; }
-.vsc-fn { color: #dcdcaa !important; font-weight: 500; }
-.vsc-class { color: #4ec9b0 !important; font-weight: 600; }
-.vsc-str { color: #ce9178 !important; }
-.vsc-num { color: #b5cea8 !important; }
-.vsc-comment { color: #6a9955 !important; font-style: italic; }
-.vsc-op { color: #d4d4d4 !important; }
-.vsc-punct { color: #808080 !important; }
-.vsc-id { color: #9cdcfe !important; }
-.vsc-bool { color: #569cd6 !important; font-weight: 600; }
-.vsc-self { color: #569cd6 !important; font-style: italic; }
-
-/* Step Navigation and Counter */
-#step-counter {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 10px;
-  border-radius: 9999px;
-  background: #10192a;
-  color: #34d399;
-  border: 1px solid #1e293b;
-  white-space: nowrap;
-}
-
-button#step-back {
-  background: #1e293b;
-  color: #e2e8f0;
-  border: 1px solid #334155;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 9999px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-button#step-back:hover:not(:disabled) {
-  background: #334155;
-  color: #ffffff;
-}
-button#step-back:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
-
-button#step {
-  font-weight: 700;
-  border-radius: 9999px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-button#step:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
+.vsc-kw { color: #c586c0; font-weight: 700; }
+.vsc-builtin { color: #dcdcaa; }
+.vsc-str { color: #ce9178; }
+.vsc-num { color: #b5cea8; }
+.vsc-comment { color: #6a9955; font-style: italic; }
+.vsc-op { color: #d4d4d4; }
+.vsc-id { color: #9cdcfe; }
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
