@@ -337,6 +337,12 @@ export default function App() {
         } else if (action.type === 'clear_output') {
           const screenEl = document.getElementById('screen');
           if (screenEl) screenEl.innerHTML = '';
+        } else if (action.type === 'speed_change' && action.speed !== undefined) {
+          const spdInput = document.getElementById('spd') as HTMLInputElement;
+          if (spdInput) {
+            spdInput.value = String(action.speed);
+            spdInput.dispatchEvent(new Event('input', { bubbles: true }));
+          }
         }
       }
     });
@@ -349,11 +355,20 @@ export default function App() {
       }
     });
 
-    // Initial check for latest teacher code
-    const latest = classroomSync.getLatestTeacherCode(currentUser?.classCode);
-    if (latest && currentUser && currentUser.role === 'student') {
-      setLatestTeacherCode(latest.code);
-      triggerSetCodeRef.current(latest.code);
+    // Initial check for latest teacher code from cloud DB and localStorage
+    if (currentUser && currentUser.role === 'student') {
+      classroomSync.fetchLatestTeacherCode(currentUser.classCode).then((latest) => {
+        if (latest && latest.code) {
+          setLatestTeacherCode(latest.code);
+          triggerSetCodeRef.current(latest.code);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `📡 <b>Teacher Screen Mirrored:</b> Connected to <b>${latest.teacherName}</b>! Code loaded automatically.`;
+          }
+        }
+      });
+      // Fire immediate cloud synchronization
+      classroomSync.syncImmediately();
     }
 
     return () => {
@@ -447,6 +462,7 @@ export default function App() {
   }, []);
 
   const handleLoginSuccess = (user: ClassroomUser, stream: MediaStream | null) => {
+    webRTCService.resumeAudioContext();
     classroomSync.initUser(user.role, user.username, user.classCode, user.cameraActive, user.micActive);
     setCurrentUser(user);
     if (stream) {
@@ -456,11 +472,18 @@ export default function App() {
     }
     setIsVideoTilesOpen(true);
     if (user.role === 'student') {
-      const latest = classroomSync.getLatestTeacherCode(user.classCode);
-      if (latest && latest.code) {
-        setLatestTeacherCode(latest.code);
-        setTeacherHasNewCode(true);
-      }
+      setIsStudentDashboardOpen(true);
+      classroomSync.fetchLatestTeacherCode(user.classCode).then((latest) => {
+        if (latest && latest.code) {
+          setLatestTeacherCode(latest.code);
+          triggerSetCodeRef.current(latest.code);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `📡 <b>Teacher Screen Mirrored:</b> Connected to <b>${latest.teacherName}</b>! Teacher code loaded automatically.`;
+          }
+        }
+      });
+      classroomSync.syncImmediately();
     }
   };
 

@@ -1,10 +1,12 @@
 import { ClassroomUser, WebRTCSignalData } from '../components/classroomTypes';
 import { classroomSync } from './classroomSync';
+import { insforgeService } from './insforgeService';
 
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun2.l.google.com:19302' },
   ],
 };
 
@@ -22,6 +24,9 @@ export class WebRTCService {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private audioMonitorInterval: any = null;
+  private signalPollInterval: any = null;
+  private lastSignalTimestamp: number = 0;
+  private processedSignalIds = new Set<string>();
 
   public static getInstance(): WebRTCService {
     if (!WebRTCService.instance) {
@@ -39,9 +44,23 @@ export class WebRTCService {
   public init(currentUser: ClassroomUser, localStream: MediaStream | null) {
     this.currentUser = currentUser;
     this.localStream = localStream;
+    this.lastSignalTimestamp = Date.now() - 5000;
 
     if (localStream && localStream.getAudioTracks().length > 0) {
       this.startVoiceActivityDetection(localStream);
+    }
+
+    // Start background signal polling from InsForge DB for cross-device & cross-browser connections
+    this.startSignalPolling();
+  }
+
+  public resumeAudioContext() {
+    try {
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+    } catch {
+      // ignore
     }
   }
 
@@ -57,7 +76,11 @@ export class WebRTCService {
           if (sender) {
             sender.replaceTrack(track).catch(() => {});
           } else {
-            pc.addTrack(track, stream);
+            try {
+              pc.addTrack(track, stream);
+            } catch {
+              // ignore
+            }
           }
         });
       }
@@ -72,6 +95,16 @@ export class WebRTCService {
     if (!this.currentUser || remoteSessionId === this.currentUser.sessionId) return;
     if (this.peerConnections.has(remoteSessionId)) return;
 
+    // Polite negotiation: Only one peer initiates offer to avoid offer glare
+    const isInitiator =
+      this.currentUser.role === 'teacher' ||
+      this.currentUser.sessionId > remoteSessionId;
+
+    if (!isInitiator) {
+      // Wait for the other peer to initiate the offer
+      return;
+    }
+
     try {
       const pc = this.createPeerConnection(remoteSessionId);
       this.peerConnections.set(remoteSessionId, pc);
@@ -79,22 +112,47 @@ export class WebRTCService {
       // Add local tracks if available
       if (this.localStream) {
         this.localStream.getTracks().forEach((track) => {
-          pc.addTrack(track, this.localStream!);
+          try {
+            pc.addTrack(track, this.localStream!);
+          } catch {
+            // ignore
+          }
         });
       }
 
-      // Teacher or initiator creates offer
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer({
+        offerToReceiveAudio: true,
+        offerToReceiveVideo: true,
+      });
       await pc.setLocalDescription(offer);
 
-      classroomSync.broadcastWebRTCSignal({
-        targetSessionId: remoteSessionId,
-        fromSessionId: this.currentUser.sessionId,
-        signal: offer,
-        type: 'offer',
-      });
+      this.emitSignal(remoteSessionId, offer, 'offer');
     } catch (err) {
       console.warn('WebRTC connectToPeer error:', err);
+    }
+  }
+
+  private emitSignal(targetSessionId: string, signal: any, type: 'offer' | 'answer' | 'candidate') {
+    if (!this.currentUser) return;
+    const signalData: WebRTCSignalData = {
+      targetSessionId,
+      fromSessionId: this.currentUser.sessionId,
+      signal,
+      type,
+    };
+
+    // 1. Broadcast locally for fast same-browser connection
+    classroomSync.broadcastWebRTCSignal(signalData);
+
+    // 2. Transmit to InsForge database for cross-device & cross-browser connections
+    if (this.currentUser.classCode) {
+      insforgeService.sendSignal(
+        this.currentUser.classCode,
+        this.currentUser.sessionId,
+        targetSessionId,
+        type,
+        signal
+      ).catch(() => {});
     }
   }
 
@@ -103,12 +161,7 @@ export class WebRTCService {
 
     pc.onicecandidate = (event) => {
       if (event.candidate && this.currentUser) {
-        classroomSync.broadcastWebRTCSignal({
-          targetSessionId: remoteSessionId,
-          fromSessionId: this.currentUser.sessionId,
-          signal: event.candidate,
-          type: 'candidate',
-        });
+        this.emitSignal(remoteSessionId, event.candidate, 'candidate');
       }
     };
 
@@ -117,11 +170,23 @@ export class WebRTCService {
       if (remoteStream) {
         this.remoteStreams.set(remoteSessionId, remoteStream);
         this.notifyRemoteStreamListeners();
+      } else if (event.track) {
+        let stream = this.remoteStreams.get(remoteSessionId);
+        if (!stream) {
+          stream = new MediaStream();
+          this.remoteStreams.set(remoteSessionId, stream);
+        }
+        stream.addTrack(event.track);
+        this.notifyRemoteStreamListeners();
       }
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+      if (
+        pc.connectionState === 'disconnected' ||
+        pc.connectionState === 'failed' ||
+        pc.connectionState === 'closed'
+      ) {
         this.closePeer(remoteSessionId);
       }
     };
@@ -145,7 +210,11 @@ export class WebRTCService {
 
           if (this.localStream) {
             this.localStream.getTracks().forEach((track) => {
-              pc!.addTrack(track, this.localStream!);
+              try {
+                pc!.addTrack(track, this.localStream!);
+              } catch {
+                // ignore
+              }
             });
           }
         }
@@ -154,14 +223,9 @@ export class WebRTCService {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
 
-        classroomSync.broadcastWebRTCSignal({
-          targetSessionId: fromId,
-          fromSessionId: this.currentUser.sessionId,
-          signal: answer,
-          type: 'answer',
-        });
+        this.emitSignal(fromId, answer, 'answer');
       } else if (signalData.type === 'answer') {
-        if (pc) {
+        if (pc && pc.signalingState !== 'stable') {
           await pc.setRemoteDescription(new RTCSessionDescription(signalData.signal));
         }
       } else if (signalData.type === 'candidate') {
@@ -172,6 +236,39 @@ export class WebRTCService {
     } catch (err) {
       console.warn('WebRTC signal handling warning:', err);
     }
+  }
+
+  private startSignalPolling() {
+    if (this.signalPollInterval) clearInterval(this.signalPollInterval);
+    this.signalPollInterval = setInterval(async () => {
+      if (!this.currentUser) return;
+      try {
+        const pending = await insforgeService.fetchPendingSignals(
+          this.currentUser.classCode,
+          this.currentUser.sessionId,
+          this.lastSignalTimestamp
+        );
+
+        if (pending && pending.length > 0) {
+          for (const item of pending) {
+            if (this.processedSignalIds.has(item.id)) continue;
+            this.processedSignalIds.add(item.id);
+            if (item.timestamp > this.lastSignalTimestamp) {
+              this.lastSignalTimestamp = item.timestamp;
+            }
+
+            this.handleIncomingSignal({
+              targetSessionId: this.currentUser.sessionId,
+              fromSessionId: item.fromSessionId,
+              signal: item.payload,
+              type: item.signalType as any,
+            });
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }, 1400);
   }
 
   public closePeer(sessionId: string) {
@@ -186,6 +283,10 @@ export class WebRTCService {
   }
 
   public cleanup() {
+    if (this.signalPollInterval) {
+      clearInterval(this.signalPollInterval);
+      this.signalPollInterval = null;
+    }
     this.peerConnections.forEach((pc) => pc.close());
     this.peerConnections.clear();
     this.remoteStreams.clear();

@@ -23,6 +23,7 @@ import {
   getOrCreateWindowSessionId,
   classroomSync,
 } from '../services/classroomSync';
+import { insforgeService } from '../services/insforgeService';
 
 interface ClassroomLoginModalProps {
   onLoginSuccess: (user: ClassroomUser, stream: MediaStream | null) => void;
@@ -40,6 +41,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
   const [detectedTeacherClass, setDetectedTeacherClass] = useState<{
     classCode: string;
     teacherName: string;
+    timestamp?: number;
   } | null>(null);
 
   // Media states
@@ -72,6 +74,21 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({ onLogi
         setClassCode(activeClass.classCode);
       }
     }
+
+    // Also check InsForge database for any active teacher class across devices
+    insforgeService.fetchLatestActiveClass().then((cloudClass) => {
+      if (cloudClass) {
+        setDetectedTeacherClass((prev) => {
+          if (!prev || cloudClass.timestamp > (prev.timestamp || 0)) {
+            return cloudClass;
+          }
+          return prev;
+        });
+        if (role === 'student') {
+          setClassCode((prev) => prev || cloudClass.classCode);
+        }
+      }
+    }).catch(() => {});
 
     // Role-based defaults
     if (role === 'teacher') {

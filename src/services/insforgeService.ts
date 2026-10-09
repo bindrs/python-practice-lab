@@ -243,6 +243,32 @@ export class InsForgeClassroomService {
   }
 
   /**
+   * Fetch any currently active teacher class across the database
+   */
+  public async fetchLatestActiveClass(): Promise<{ classCode: string; teacherName: string; timestamp: number } | null> {
+    try {
+      const { data, error } = await insforge.database
+        .from('classroom_codes')
+        .select('class_code, teacher_name, timestamp')
+        .order('timestamp', { ascending: false })
+        .limit(1);
+
+      if (error || !data || data.length === 0) {
+        return null;
+      }
+
+      const row = data[0];
+      return {
+        classCode: row.class_code,
+        teacherName: row.teacher_name,
+        timestamp: Number(row.timestamp) || Date.now(),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Save a chat message to InsForge database
    */
   public async saveMessage(msg: ChatMessage, classCode: string): Promise<boolean> {
@@ -349,6 +375,93 @@ export class InsForgeClassroomService {
       return row.payload as TeacherLiveAction;
     } catch {
       return null;
+    }
+  }
+
+  /**
+   * Fetch actions newer than afterTimestamp
+   */
+  public async fetchRecentLiveActions(classCode: string, afterTimestamp: number): Promise<TeacherLiveAction[]> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { data, error } = await insforge.database
+        .from('classroom_live_actions')
+        .select()
+        .eq('class_code', cleanCode)
+        .gt('timestamp', afterTimestamp)
+        .order('timestamp', { ascending: true })
+        .limit(20);
+
+      if (error || !data) return [];
+      return data.map((row: any) => row.payload as TeacherLiveAction);
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Send WebRTC signal (offer/answer/candidate) through InsForge for cross-device support
+   */
+  public async sendSignal(
+    classCode: string,
+    fromSessionId: string,
+    targetSessionId: string,
+    signalType: string,
+    payload: any
+  ): Promise<boolean> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { error } = await insforge.database
+        .from('classroom_signals')
+        .insert([{
+          class_code: cleanCode,
+          from_session_id: fromSessionId,
+          target_session_id: targetSessionId,
+          signal_type: signalType,
+          payload,
+          timestamp: Date.now(),
+        }]);
+
+      if (error) {
+        console.warn('InsForge sendSignal error:', error);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Fetch pending WebRTC signals intended for mySessionId
+   */
+  public async fetchPendingSignals(
+    classCode: string,
+    mySessionId: string,
+    afterTimestamp: number
+  ): Promise<Array<{ id: string; fromSessionId: string; signalType: string; payload: any; timestamp: number }>> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { data, error } = await insforge.database
+        .from('classroom_signals')
+        .select()
+        .eq('class_code', cleanCode)
+        .eq('target_session_id', mySessionId)
+        .gt('timestamp', afterTimestamp)
+        .order('timestamp', { ascending: true })
+        .limit(30);
+
+      if (error || !data) return [];
+
+      return data.map((row: any) => ({
+        id: row.id,
+        fromSessionId: row.from_session_id,
+        signalType: row.signal_type,
+        payload: row.payload,
+        timestamp: Number(row.timestamp) || Date.now(),
+      }));
+    } catch {
+      return [];
     }
   }
 }

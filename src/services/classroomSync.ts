@@ -54,7 +54,12 @@ export class ClassroomSyncService {
   private messageListeners: ((msg: BroadcastMessage) => void)[] = [];
   private peersListeners: ((peers: ClassroomUser[]) => void)[] = [];
   private heartbeatInterval: any = null;
+  private cloudSyncInterval: any = null;
   private heartbeatTick = 0;
+  private codeSaveTimeout: any = null;
+  private lastReceivedCodeTimestamp = 0;
+  private lastReceivedActionTimestamp = 0;
+  private processedActionKeys = new Set<string>();
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -234,6 +239,8 @@ export class ClassroomSyncService {
   public broadcastCode(code: string, notes?: string) {
     if (!this.currentUser) return;
 
+    this.lastReceivedCodeTimestamp = Date.now();
+
     // Persist latest teacher code for this classCode
     try {
       const key = `${STORAGE_TEACHER_CODE_PREFIX}${this.currentUser.classCode}`;
@@ -250,7 +257,7 @@ export class ClassroomSyncService {
       // ignore
     }
 
-    // Persist teacher code to InsForge cloud database
+    // Persist teacher code to InsForge cloud database immediately
     insforgeService.saveClassCode(this.currentUser.classCode, this.currentUser.username, code).catch(() => {});
 
     this.broadcast({
@@ -268,7 +275,10 @@ export class ClassroomSyncService {
    */
   public broadcastTeacherAction(action: TeacherLiveAction) {
     if (!this.currentUser) return;
-    // Also persist in InsForge DB
+    this.lastReceivedActionTimestamp = action.timestamp;
+    this.processedActionKeys.add(`${action.timestamp}_${action.type}`);
+
+    // Persist in InsForge DB immediately for cross-device & cross-browser synchronization
     insforgeService.saveLiveAction(action, this.currentUser.classCode).catch(() => {});
 
     this.broadcast({
@@ -281,10 +291,13 @@ export class ClassroomSyncService {
   }
 
   /**
-   * Broadcast real-time code typing/editing by teacher
+   * Broadcast real-time code typing/editing by teacher with debounced cloud save
    */
   public broadcastCodeChange(code: string) {
     if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+    this.lastReceivedCodeTimestamp = Date.now();
+
+    // 1. Broadcast immediately over local BroadcastChannel
     this.broadcast({
       action: 'code_change',
       sender: this.currentUser,
@@ -292,6 +305,30 @@ export class ClassroomSyncService {
       code,
       timestamp: Date.now(),
     });
+
+    // 2. Cache in localStorage
+    try {
+      const key = `${STORAGE_TEACHER_CODE_PREFIX}${this.currentUser.classCode}`;
+      localStorage.setItem(
+        key,
+        JSON.stringify({
+          code,
+          teacherName: this.currentUser.username,
+          classCode: this.currentUser.classCode,
+          timestamp: Date.now(),
+        })
+      );
+    } catch {
+      // ignore
+    }
+
+    // 3. Debounce save to InsForge cloud DB (600ms) so students on other browsers/devices receive it
+    if (this.codeSaveTimeout) clearTimeout(this.codeSaveTimeout);
+    this.codeSaveTimeout = setTimeout(() => {
+      if (this.currentUser && this.currentUser.role === 'teacher') {
+        insforgeService.saveClassCode(this.currentUser.classCode, this.currentUser.username, code).catch(() => {});
+      }
+    }, 600);
   }
 
   /**
@@ -428,6 +465,14 @@ export class ClassroomSyncService {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
+    if (this.cloudSyncInterval) {
+      clearInterval(this.cloudSyncInterval);
+      this.cloudSyncInterval = null;
+    }
+    if (this.codeSaveTimeout) {
+      clearTimeout(this.codeSaveTimeout);
+      this.codeSaveTimeout = null;
+    }
 
     if (this.currentUser) {
       const sid = this.currentUser.sessionId;
@@ -494,6 +539,17 @@ export class ClassroomSyncService {
       this.upsertPeer(msg.sender);
     } else if (msg.action === 'peer_leave') {
       this.removePeer(msg.sender.sessionId);
+    } else if (msg.action === 'code_broadcast' || msg.action === 'code_change') {
+      if (msg.timestamp) {
+        this.lastReceivedCodeTimestamp = Math.max(this.lastReceivedCodeTimestamp, msg.timestamp);
+      }
+    } else if (msg.action === 'teacher_action' && msg.teacherAction) {
+      const act = msg.teacherAction;
+      this.lastReceivedActionTimestamp = Math.max(
+        this.lastReceivedActionTimestamp,
+        act.timestamp || msg.timestamp || 0
+      );
+      this.processedActionKeys.add(`${act.timestamp}_${act.type}`);
     }
 
     this.messageListeners.forEach((cb) => cb(msg));
@@ -517,23 +573,156 @@ export class ClassroomSyncService {
       this.cleanStalePeers();
 
       this.heartbeatTick++;
-      // Every 2 ticks (approx 8 seconds), ping InsForge and sync remote peers from database
-      if (this.heartbeatTick % 2 === 0) {
-        insforgeService.pingUser(this.currentUser.sessionId).catch(() => {});
+      // Every tick, ping InsForge and sync remote peers from database
+      insforgeService.pingUser(this.currentUser.sessionId).catch(() => {});
+      try {
+        const remoteUsers = await insforgeService.fetchClassUsers(this.currentUser.classCode);
+        if (remoteUsers && remoteUsers.length > 0) {
+          remoteUsers.forEach((remoteUser) => {
+            if (remoteUser.sessionId !== this.currentUser?.sessionId) {
+              this.upsertPeer(remoteUser);
+            }
+          });
+        }
+      } catch {
+        // ignore
+      }
+    }, 3000);
+
+    // Also start high-frequency live cloud synchronization (1.2s interval)
+    this.startLiveSync();
+  }
+
+  /**
+   * Start high-frequency cloud sync loop to poll teacher code & live actions from InsForge DB
+   */
+  private startLiveSync() {
+    if (this.cloudSyncInterval) clearInterval(this.cloudSyncInterval);
+    // Fire immediate sync right now
+    this.syncImmediately();
+    // Then poll cloud database every 1200ms
+    this.cloudSyncInterval = setInterval(() => {
+      this.syncImmediately();
+    }, 1200);
+  }
+
+  /**
+   * Immediately synchronize latest teacher code and actions from InsForge cloud DB
+   */
+  public async syncImmediately(): Promise<void> {
+    if (!this.currentUser) return;
+    const classCode = this.currentUser.classCode;
+
+    // 1. Fetch latest teacher code from InsForge cloud database
+    try {
+      const latestCode = await insforgeService.getLatestClassCode(classCode);
+      if (latestCode && latestCode.timestamp > this.lastReceivedCodeTimestamp) {
+        this.lastReceivedCodeTimestamp = latestCode.timestamp;
         try {
-          const remoteUsers = await insforgeService.fetchClassUsers(this.currentUser.classCode);
-          if (remoteUsers && remoteUsers.length > 0) {
-            remoteUsers.forEach((remoteUser) => {
-              if (remoteUser.sessionId !== this.currentUser?.sessionId) {
-                this.upsertPeer(remoteUser);
-              }
-            });
-          }
+          const key = `${STORAGE_TEACHER_CODE_PREFIX}${classCode.toUpperCase()}`;
+          localStorage.setItem(key, JSON.stringify(latestCode));
         } catch {
           // ignore
         }
+
+        if (this.currentUser.role === 'student') {
+          const msg: BroadcastMessage = {
+            action: 'code_broadcast',
+            sender: {
+              sessionId: 'teacher-cloud',
+              role: 'teacher',
+              username: latestCode.teacherName,
+              classCode,
+              joinedAt: latestCode.timestamp,
+              cameraActive: false,
+              micActive: false,
+              avatarColor: '#f59e0b',
+              lastPing: Date.now(),
+            },
+            classCode,
+            code: latestCode.code,
+            timestamp: latestCode.timestamp,
+          };
+          this.messageListeners.forEach((cb) => cb(msg));
+        }
       }
-    }, 4000);
+    } catch {
+      // ignore
+    }
+
+    // 2. Fetch latest live actions from InsForge cloud database
+    try {
+      if (!classCode) return;
+      const actions = await insforgeService.fetchRecentLiveActions(classCode, this.lastReceivedActionTimestamp);
+      if (actions && actions.length > 0) {
+        for (const action of actions) {
+          const actionKey = `${action.timestamp}_${action.type}`;
+          if (this.processedActionKeys.has(actionKey)) continue;
+          this.processedActionKeys.add(actionKey);
+          if (this.processedActionKeys.size > 300) {
+            const it = this.processedActionKeys.values();
+            for (let i = 0; i < 50; i++) {
+              const val = it.next().value;
+              if (val) this.processedActionKeys.delete(val);
+            }
+          }
+          if (action.timestamp > this.lastReceivedActionTimestamp) {
+            this.lastReceivedActionTimestamp = action.timestamp;
+          }
+
+          if (this.currentUser.role === 'student') {
+            const msg: BroadcastMessage = {
+              action: 'teacher_action',
+              sender: {
+                sessionId: 'teacher-cloud',
+                role: 'teacher',
+                username: action.teacherName,
+                classCode,
+                joinedAt: action.timestamp,
+                cameraActive: false,
+                micActive: false,
+                avatarColor: '#f59e0b',
+                lastPing: Date.now(),
+              },
+              classCode,
+              teacherAction: action,
+              timestamp: action.timestamp,
+            };
+            this.messageListeners.forEach((cb) => cb(msg));
+          }
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * Async fetch of latest teacher code from cloud DB with localStorage fallback
+   */
+  public async fetchLatestTeacherCode(
+    classCode?: string
+  ): Promise<{ code: string; teacherName: string; timestamp: number } | null> {
+    const codeKey = classCode || (this.currentUser ? this.currentUser.classCode : '');
+    if (!codeKey) return null;
+
+    // 1. Try InsForge database
+    try {
+      const cloudCode = await insforgeService.getLatestClassCode(codeKey);
+      if (cloudCode && cloudCode.code) {
+        try {
+          localStorage.setItem(`${STORAGE_TEACHER_CODE_PREFIX}${codeKey.toUpperCase()}`, JSON.stringify(cloudCode));
+        } catch {
+          // ignore
+        }
+        return cloudCode;
+      }
+    } catch {
+      // ignore
+    }
+
+    // 2. Fallback to localStorage
+    return this.getLatestTeacherCode(codeKey);
   }
 
   private upsertPeer(user: ClassroomUser) {

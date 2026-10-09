@@ -80,7 +80,24 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
       }
     });
 
+    // Periodic message poll to sync messages from InsForge DB across devices
+    const msgInterval = setInterval(() => {
+      if (currentUser?.classCode) {
+        insforgeService.fetchMessages(currentUser.classCode).then((history) => {
+          if (history && history.length > 0) {
+            setMessages((prev) => {
+              const prevIds = new Set(prev.map((m) => m.id));
+              const newOnes = history.filter((m) => !prevIds.has(m.id));
+              if (newOnes.length === 0) return prev;
+              return [...prev, ...newOnes].sort((a, b) => a.timestamp - b.timestamp);
+            });
+          }
+        });
+      }
+    }, 2000);
+
     return () => {
+      clearInterval(msgInterval);
       unsubChat();
       unsubMsg();
     };
