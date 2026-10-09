@@ -51,22 +51,6 @@
   border: 1px solid #cbd5e1;
 }
 
-[data-theme="light"] .tab-bar {
-  background: #ffffff;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-[data-theme="light"] .tab {
-  background: #f8fafc;
-  color: #475569;
-}
-
-[data-theme="light"] .auto-closer-toggle {
-  background: #f1f5f9;
-  border-color: #cbd5e1;
-  color: #475569;
-}
-
 [data-theme="light"] .meta-theater {
   background: #f8fafc;
 }
@@ -75,44 +59,6 @@
 [data-theme="light"] .meta-vessels-deck {
   background: #ffffff;
   border-color: #e2e8f0;
-}
-
-[data-theme="light"] .term-deck {
-  background: #ffffff;
-  border-top: 1px solid #e2e8f0;
-}
-
-[data-theme="light"] .deck-tabs {
-  background: #f8fafc;
-  border-bottom: 1px solid #e2e8f0;
-}
-
-[data-theme="light"] .deck-tab-btn {
-  color: #64748b;
-}
-
-[data-theme="light"] .deck-tab-btn.active {
-  color: #0f172a;
-  background: #ffffff;
-  border-color: #e2e8f0;
-}
-
-[data-theme="light"] #tr {
-  background: #ffffff;
-  color: #0f172a;
-}
-
-[data-theme="light"] #tt th {
-  background: #f1f5f9;
-  color: #475569;
-}
-
-[data-theme="light"] #tt td {
-  border-bottom: 1px solid #f1f5f9;
-}
-
-[data-theme="light"] .gut {
-  color: #94a3b8;
 }
 
 [data-theme="light"] button {
@@ -124,6 +70,146 @@
 [data-theme="light"] button:hover {
   background: #f1f5f9;
   color: #0f172a;
+}
+
+/* ========================================================
+   CODEBASE (EDITOR) & TERMINAL — ALWAYS STAY BLACK
+   ======================================================== */
+
+.edp,
+[data-theme="light"] .edp {
+  background: #0f172a !important;
+  border-right: 1px solid #1e293b !important;
+}
+
+.edp .tab-bar,
+[data-theme="light"] .edp .tab-bar {
+  background: #0f172a !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.edp .tab,
+[data-theme="light"] .edp .tab {
+  background: #090e17 !important;
+  color: #94a3b8 !important;
+  border-bottom: 2px solid var(--num) !important;
+}
+
+.edp .auto-closer-toggle,
+[data-theme="light"] .edp .auto-closer-toggle {
+  background: #1e293b !important;
+  border-color: #334155 !important;
+  color: #94a3b8 !important;
+}
+
+.edp .auto-closer-toggle.on,
+[data-theme="light"] .edp .auto-closer-toggle.on {
+  border-color: var(--ok) !important;
+  color: var(--ok) !important;
+  background: rgba(16, 185, 129, 0.15) !important;
+}
+
+.edp .ed,
+[data-theme="light"] .edp .ed {
+  background: #090e17 !important;
+}
+
+.edp .gut,
+[data-theme="light"] .edp .gut {
+  color: #64748b !important;
+}
+
+.edp textarea#code,
+[data-theme="light"] .edp textarea#code {
+  color: #f8fafc !important;
+  background: transparent !important;
+}
+
+.edp pre#code-highlight,
+[data-theme="light"] .edp pre#code-highlight {
+  color: #f8fafc !important;
+  background: transparent !important;
+}
+
+/* Terminal & Output Deck — Always Stays Black */
+.term-deck,
+[data-theme="light"] .term-deck {
+  background: #090e17 !important;
+  border-top: 1px solid #1e293b !important;
+}
+
+.deck-tabs,
+[data-theme="light"] .deck-tabs {
+  background: #0f172a !important;
+  border-bottom: 1px solid #1e293b !important;
+}
+
+.deck-tab-btn,
+[data-theme="light"] .deck-tab-btn {
+  color: #94a3b8 !important;
+  background: transparent !important;
+}
+
+.deck-tab-btn.active,
+[data-theme="light"] .deck-tab-btn.active {
+  color: #38bdf8 !important;
+  border-bottom-color: #38bdf8 !important;
+  background: transparent !important;
+}
+
+.term-screen,
+#screen,
+.screen,
+[data-theme="light"] .term-screen,
+[data-theme="light"] #screen,
+[data-theme="light"] .screen {
+  background: #050811 !important;
+  color: #6ee7b7 !important;
+}
+
+.screen .ln,
+[data-theme="light"] .screen .ln {
+  color: #f1f5f9 !important;
+}
+
+.screen .pr,
+[data-theme="light"] .screen .pr {
+  color: #34d399 !important;
+}
+
+.screen .err,
+[data-theme="light"] .screen .err {
+  color: #f87171 !important;
+}
+
+#tr,
+[data-theme="light"] #tr {
+  background: #090e17 !important;
+  color: #cbd5e1 !important;
+}
+
+#tt,
+[data-theme="light"] #tt {
+  color: #cbd5e1 !important;
+}
+
+#tt th,
+[data-theme="light"] #tt th {
+  background: #1e293b !important;
+  color: #94a3b8 !important;
+  border-bottom: 1px solid #334155 !important;
+}
+
+#tt td,
+[data-theme="light"] #tt td {
+  border-bottom: 1px solid #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+#tt td.ch,
+[data-theme="light"] #tt td.ch {
+  background: rgba(245, 158, 11, 0.25) !important;
+  color: #fde68a !important;
 }
 
 * {
