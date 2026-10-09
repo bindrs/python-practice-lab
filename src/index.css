@@ -1716,6 +1716,15 @@ textarea#code {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Hide scrollbars while maintaining full scrolling functionality */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  display: none;
+}
+
 @media (max-width: 900px) {
   body { overflow: auto; }
   .app { height: auto; display: block; }
