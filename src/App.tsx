@@ -14,6 +14,67 @@ export default function App() {
   const memHistoryOnRef = useRef(false);
   const renderVesselsRef = useRef<() => void>(() => {});
 
+  const [hideScrollbars, setHideScrollbars] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('hide_scrollbars') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const [tagToolOpen, setTagToolOpen] = useState(false);
+  const [enteredTagValue, setEnteredTagValue] = useState('');
+  const tagInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('hide_scrollbars', String(hideScrollbars));
+    } catch {
+      // ignore
+    }
+  }, [hideScrollbars]);
+
+  const insertTagIntoCode = (tagVal: string) => {
+    const codeEl = document.getElementById('code') as HTMLTextAreaElement;
+    if (!codeEl) return;
+    const start = codeEl.selectionStart ?? codeEl.value.length;
+    const end = codeEl.selectionEnd ?? codeEl.value.length;
+    const cleanTag = tagVal.trim();
+
+    if (!cleanTag) {
+      // First blank tag insertion: < > </ > with first blank space selected
+      const snippet = '< > </ >';
+      codeEl.setRangeText(snippet, start, end, 'preserve');
+      codeEl.selectionStart = start + 1;
+      codeEl.selectionEnd = start + 2; // highlights the blank space inside first tag
+      codeEl.focus();
+      codeEl.dispatchEvent(new Event('input', { bubbles: true }));
+      return;
+    }
+
+    const snippet = `<${cleanTag}></${cleanTag}>`;
+    codeEl.setRangeText(snippet, start, end, 'preserve');
+    // place cursor right inside the tag: <tag>|</tag>
+    codeEl.selectionStart = codeEl.selectionEnd = start + cleanTag.length + 2;
+    codeEl.focus();
+    codeEl.dispatchEvent(new Event('input', { bubbles: true }));
+  };
+
+  const handleOpenTagTool = () => {
+    setTagToolOpen((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        // First show first blank!
+        setEnteredTagValue('');
+        setTimeout(() => {
+          tagInputRef.current?.focus();
+          tagInputRef.current?.select();
+        }, 50);
+      }
+      return nextState;
+    });
+  };
+
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
   }, [autoTagCloser]);
@@ -2290,13 +2351,22 @@ export default function App() {
 
       if (!active) return;
 
-      // 2. Auto Tag Closer: typing '>' after an opening tag <tag> or <tag attr="val">
+      // 2. Auto Tag Closer: typing '>' after an opening tag <tag> or <tag attr="val"> or empty tag <>
       if (e.key === '>') {
         if (start === end) {
           // If cursor is directly before existing '>', just step over it
           if (val[start] === '>') {
             e.preventDefault();
             code.selectionStart = code.selectionEnd = start + 1;
+            return;
+          }
+
+          // If typed right after '<' with no tag name (empty < >), auto-close blank tag
+          if (start > 0 && val[start - 1] === '<') {
+            e.preventDefault();
+            code.setRangeText('></>', start, end, 'preserve');
+            code.selectionStart = code.selectionEnd = start + 1; // cursor right between > and </
+            reset();
             return;
           }
 
@@ -2481,7 +2551,7 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className="app">
+    <div ref={containerRef} className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}>
       {/* Top Header & Actions */}
       <div className="tb">
         <b>Python Studio</b>
@@ -2493,6 +2563,14 @@ export default function App() {
         </button>
         <button id="step">Step</button>
         <button id="reset">Reset</button>
+        <button
+          type="button"
+          className={`tb-toggle-btn ${hideScrollbars ? 'active' : ''}`}
+          onClick={() => setHideScrollbars((prev) => !prev)}
+          title="Toggle Hideable Scrollbars: hide or show scrollbars across the codebase"
+        >
+          {hideScrollbars ? 'Scrollbar: Hidden' : 'Scrollbar: Visible'}
+        </button>
         <label className="ck">
           <input type="checkbox" id="pr" /> Predict Output
         </label>
@@ -2506,15 +2584,154 @@ export default function App() {
         <aside className="edp">
           <div className="tab-bar">
             <div className="tab">main.py</div>
-            <button
-              type="button"
-              className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
-              onClick={() => setAutoTagCloser((prev) => !prev)}
-              title="Toggle Auto Tag Closer and Auto Pair Closer"
-            >
-              Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <button
+                type="button"
+                className={`auto-closer-toggle ${hideScrollbars ? 'on' : ''}`}
+                onClick={() => setHideScrollbars((prev) => !prev)}
+                title="Toggle Hideable Scrollbars across the editor and panels"
+              >
+                Scrollbar: {hideScrollbars ? 'Hidden' : 'Visible'}
+              </button>
+              <button
+                type="button"
+                className={`auto-closer-toggle ${tagToolOpen ? 'on' : ''}`}
+                onClick={handleOpenTagTool}
+                title="Click on Autoclosing Tags: first show first blank, when enter value then show"
+              >
+                Autoclosing Tags {tagToolOpen ? '▲' : '▼'}
+              </button>
+            </div>
           </div>
+
+          {/* Autoclosing Tag Builder: First show first blank, when enter value then show */}
+          {tagToolOpen && (
+            <div className="autoclosing-tag-panel">
+              <div className="tag-panel-header">
+                <div className="tag-panel-title-group">
+                  <span className="tag-panel-badge">Autoclosing Tags</span>
+                  <span className="tag-panel-hint">
+                    {enteredTagValue.trim()
+                      ? `Value "${enteredTagValue.trim()}" entered ➔ autoclosing tag ready`
+                      : 'First blank shown ➔ enter value to close tag'}
+                  </span>
+                </div>
+                <div className="tag-panel-actions-group">
+                  <button
+                    type="button"
+                    className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
+                    style={{ fontSize: '10.5px', padding: '2px 8px' }}
+                    onClick={() => setAutoTagCloser((prev) => !prev)}
+                    title="Toggle keyboard auto-closing while typing in editor"
+                  >
+                    Editor Auto-close: {autoTagCloser ? 'ON' : 'OFF'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTagToolOpen(false)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--mute)',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      padding: '0 4px',
+                      lineHeight: 1,
+                    }}
+                    title="Close Autoclosing Tag Panel"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              {/* Tag Canvas: First Blank ➔ Enter Value ➔ Show live */}
+              <div className="tag-interactive-canvas">
+                {/* Opening Tag Bracket */}
+                <div className="tag-bracket-wrapper">
+                  <span className="tag-bracket">&lt;</span>
+                  <input
+                    ref={tagInputRef}
+                    type="text"
+                    className={`tag-first-blank-input ${enteredTagValue ? 'filled' : ''}`}
+                    placeholder="[ first blank ]"
+                    value={enteredTagValue}
+                    onChange={(e) => setEnteredTagValue(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        insertTagIntoCode(enteredTagValue);
+                      }
+                      if (e.key === 'Escape') {
+                        setTagToolOpen(false);
+                      }
+                    }}
+                    title="Enter tag value: first blank, when enter value then show"
+                  />
+                  <span className="tag-bracket">&gt;</span>
+                </div>
+
+                <span className="tag-content-placeholder">content</span>
+
+                {/* Mirror Closing Tag: shows first blank when empty, shows value when entered */}
+                <div
+                  className={`tag-mirror-closing ${
+                    enteredTagValue.trim() ? 'is-filled' : 'is-blank'
+                  }`}
+                >
+                  <span className="tag-bracket">&lt;/</span>
+                  {enteredTagValue.trim() ? (
+                    <span style={{ fontWeight: 800, padding: '0 2px' }}>
+                      {enteredTagValue.trim()}
+                    </span>
+                  ) : (
+                    <span className="tag-blank-preview-badge">first blank</span>
+                  )}
+                  <span className="tag-bracket">&gt;</span>
+                </div>
+
+                {/* Actions */}
+                <button
+                  type="button"
+                  className="tag-btn-insert"
+                  onClick={() => insertTagIntoCode(enteredTagValue)}
+                  title="Insert this tag into code"
+                >
+                  {enteredTagValue.trim()
+                    ? `Insert <${enteredTagValue.trim()}></${enteredTagValue.trim()}>`
+                    : 'Insert Tag'}
+                </button>
+                <button
+                  type="button"
+                  className="tag-btn-blank"
+                  onClick={() => insertTagIntoCode('')}
+                  title="Insert blank tag < > </ > with first blank selected in code"
+                >
+                  Insert Blank &lt; &gt; &lt;/ &gt;
+                </button>
+              </div>
+
+              {/* Quick Tag Presets */}
+              <div className="tag-panel-presets">
+                <span className="tag-preset-label">Quick Tags:</span>
+                {['div', 'span', 'p', 'button', 'section', 'code', 'custom'].map((tagName) => (
+                  <button
+                    key={tagName}
+                    type="button"
+                    className="tag-preset-chip"
+                    onClick={() => {
+                      setEnteredTagValue(tagName);
+                      tagInputRef.current?.focus();
+                    }}
+                    title={`Set value to ${tagName}`}
+                  >
+                    &lt;{tagName}&gt;&lt;/{tagName}&gt;
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="ed">
             <div className="mark" id="mark" />
             <div className="gut" id="gut" />
