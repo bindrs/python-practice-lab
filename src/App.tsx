@@ -10,10 +10,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
   const [autoTagCloser, setAutoTagCloser] = useState(true);
   const autoTagCloserRef = useRef(true);
+  const [memHistoryOn, setMemHistoryOn] = useState(false);
+  const memHistoryOnRef = useRef(false);
+  const renderVesselsRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
   }, [autoTagCloser]);
+
+  useEffect(() => {
+    memHistoryOnRef.current = memHistoryOn;
+  }, [memHistoryOn]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -1305,6 +1312,7 @@ export default function App() {
       incomingVal?: any,
       phase?: 'appearbox' | 'dropping'
     ) {
+      renderVesselsRef.current = () => renderVessels();
       if (!vesselsEl) return;
       const env = stack[stack.length - 1];
       const allVars = { ...G.vars, ...env.vars };
@@ -1437,6 +1445,14 @@ export default function App() {
               <div class="mem-slot ${slotClass}" ${slotStyle}>
                 ${valDisplay}
               </div>
+              ${memHistoryOnRef.current && varHist[k] && varHist[k].length ? `
+                <div class="var-history-trail">
+                  <span class="history-title">History:</span>
+                  <div class="history-pills">
+                    ${varHist[k].map(hx => `<span class="history-pill" title="Previous value">${esc(rep(hx))}</span>`).join('<span class="history-arrow">➔</span>')}
+                  </div>
+                </div>
+              ` : ''}
             </div>
           `;
         })
@@ -1472,6 +1488,12 @@ export default function App() {
 
     async function setVar(env: any, name: string, v: any) {
       const isNew = !(name in env.vars) && !(name in G.vars);
+      const existingVal = env.vars[name] !== undefined ? env.vars[name] : G.vars[name];
+      if (existingVal !== undefined && !eq(existingVal, v)) {
+        varHist[name] = varHist[name] || [];
+        varHist[name].push(existingVal);
+        if (varHist[name].length > 5) varHist[name].shift();
+      }
       env.vars[name] = v;
 
       // STEP 1: APPEAR BOX
@@ -1987,9 +2009,10 @@ export default function App() {
       };
     }
 
-    /* Trace Table */
+    /* Trace Table & Variable History */
     let TR: Array<{ ln: number; snap: Record<string, string> }> = [];
     let trCols: string[] = [];
+    let varHist: Record<string, any[]> = {};
 
     function traceAdd() {
       const snap: Record<string, string> = {};
@@ -2086,6 +2109,7 @@ export default function App() {
       renderVessels();
       TR = [];
       trCols = [];
+      varHist = {};
       renderTrace();
       OUTTXT = '';
       setMeta({ type: 'idle' });
@@ -2454,11 +2478,27 @@ export default function App() {
 
             {/* Professional Memory Entries Deck */}
             <div className="meta-vessels-deck">
-              <div className="stage-title">
-                <span>Live Memory Entries</span>
-                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
-                  Target Mention ➔ Value Drop Animation
-                </span>
+              <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <span>Live Memory Entries</span>
+                  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
+                    Target Mention ➔ Value Drop Animation
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={`auto-closer-toggle ${memHistoryOn ? 'on' : ''}`}
+                  onClick={() => {
+                    setMemHistoryOn((prev) => {
+                      const next = !prev;
+                      setTimeout(() => renderVesselsRef.current(), 10);
+                      return next;
+                    });
+                  }}
+                  title="Toggle Variable History Breadcrumbs"
+                >
+                  History: {memHistoryOn ? 'ON' : 'OFF'}
+                </button>
               </div>
               <div className="vessels-grid" id="vessels"></div>
             </div>

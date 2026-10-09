@@ -1615,6 +1615,52 @@ textarea#code {
   font-size: 1.25rem;
 }
 
+/* Variable History Breadcrumb Trail */
+.var-history-trail {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+
+.history-title {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--mute);
+  letter-spacing: 0.05em;
+}
+
+.history-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.history-pill {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  padding: 1px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  opacity: 0.85;
+}
+
+.history-arrow {
+  color: var(--mute);
+  font-size: 10px;
+}
+
+
 .mbox textarea {
   width: 100%;
   font: 700 14px/22px "JetBrains Mono", monospace;
