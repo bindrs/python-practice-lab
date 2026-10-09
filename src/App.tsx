@@ -4,6 +4,11 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { ClassroomUser } from './components/classroomTypes';
+import { classroomSync } from './services/classroomSync';
+import { ClassroomLoginModal } from './components/ClassroomLoginModal';
+import { ClassroomHeaderBar } from './components/ClassroomHeaderBar';
+import { ClassroomVideoTiles } from './components/ClassroomVideoTiles';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -166,6 +171,134 @@ export default function App() {
     } else if (e.key === 'Home') {
       e.preventDefault();
       setCodebaseWidth(30);
+    }
+  };
+
+  // Classroom Live State
+  const [currentUser, setCurrentUser] = useState<ClassroomUser | null>(() => {
+    return classroomSync.getCurrentUser();
+  });
+  const [peers, setPeers] = useState<ClassroomUser[]>([]);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const [cameraActive, setCameraActive] = useState<boolean>(true);
+  const [micActive, setMicActive] = useState<boolean>(true);
+  const [isVideoTilesOpen, setIsVideoTilesOpen] = useState<boolean>(false);
+  const [teacherHasNewCode, setTeacherHasNewCode] = useState<boolean>(false);
+  const [, setLatestTeacherCode] = useState<string>('');
+  const [autoSyncWithTeacher, setAutoSyncWithTeacher] = useState<boolean>(true);
+
+  // Sync peer directory and incoming teacher broadcasts
+  useEffect(() => {
+    const unsubPeers = classroomSync.onPeersChange((activePeers) => {
+      setPeers(activePeers);
+    });
+
+    const unsubMsg = classroomSync.onMessage((msg) => {
+      if (msg.action === 'code_broadcast' && msg.code) {
+        setLatestTeacherCode(msg.code);
+        const current = classroomSync.getCurrentUser();
+        if (current && current.role === 'student') {
+          if (autoSyncWithTeacher) {
+            const codeEl = document.getElementById('code') as HTMLTextAreaElement;
+            if (codeEl) {
+              codeEl.value = msg.code;
+              codeEl.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            setTeacherHasNewCode(false);
+            const sayEl = document.getElementById('say');
+            if (sayEl) {
+              sayEl.innerHTML = `📡 <b>Teacher Live Broadcast Received:</b> Code from <b>${msg.sender.username}</b> loaded live! Feel free to edit, modify, and test changes in your window freely.`;
+            }
+          } else {
+            setTeacherHasNewCode(true);
+          }
+        }
+      }
+    });
+
+    // Initial check for latest teacher code
+    const latest = classroomSync.getLatestTeacherCode();
+    if (latest && currentUser && currentUser.role === 'student') {
+      setLatestTeacherCode(latest.code);
+      setTeacherHasNewCode(true);
+    }
+
+    return () => {
+      unsubPeers();
+      unsubMsg();
+    };
+  }, [autoSyncWithTeacher, currentUser]);
+
+  const handleTeacherBroadcast = () => {
+    const codeEl = document.getElementById('code') as HTMLTextAreaElement;
+    const currentCode = codeEl ? codeEl.value : '';
+    classroomSync.broadcastCode(currentCode);
+    const sayEl = document.getElementById('say');
+    if (sayEl) {
+      sayEl.innerHTML = `📡 <b>Live Broadcast Sent:</b> Teacher code broadcasted to all connected student windows live!`;
+    }
+  };
+
+  const handleLoadTeacherCode = () => {
+    const latest = classroomSync.getLatestTeacherCode();
+    if (latest && latest.code) {
+      const codeEl = document.getElementById('code') as HTMLTextAreaElement;
+      if (codeEl) {
+        codeEl.value = latest.code;
+        codeEl.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      setTeacherHasNewCode(false);
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `📥 <b>Teacher Code Loaded:</b> Broadcast from <b>${latest.teacherName}</b> loaded. You can modify it, run it, and experiment with it freely!`;
+      }
+    }
+  };
+
+  const handleToggleCamera = () => {
+    if (mediaStream) {
+      const vTracks = mediaStream.getVideoTracks();
+      vTracks.forEach((t) => (t.enabled = !cameraActive));
+    }
+    const nextState = !cameraActive;
+    setCameraActive(nextState);
+    classroomSync.updateMediaStatus(nextState, micActive);
+  };
+
+  const handleToggleMic = () => {
+    if (mediaStream) {
+      const aTracks = mediaStream.getAudioTracks();
+      aTracks.forEach((t) => (t.enabled = !micActive));
+    }
+    const nextState = !micActive;
+    setMicActive(nextState);
+    classroomSync.updateMediaStatus(cameraActive, nextState);
+  };
+
+  const handleLogout = () => {
+    classroomSync.leave();
+    if (mediaStream) {
+      mediaStream.getTracks().forEach((t) => t.stop());
+      setMediaStream(null);
+    }
+    setCurrentUser(null);
+  };
+
+  const handleLoginSuccess = (user: ClassroomUser, stream: MediaStream | null) => {
+    classroomSync.initUser(user.role, user.username, user.cameraActive, user.micActive);
+    setCurrentUser(user);
+    if (stream) {
+      setMediaStream(stream);
+      setCameraActive(user.cameraActive);
+      setMicActive(user.micActive);
+    }
+    setIsVideoTilesOpen(true);
+    if (user.role === 'student') {
+      const latest = classroomSync.getLatestTeacherCode();
+      if (latest && latest.code) {
+        setLatestTeacherCode(latest.code);
+        setTeacherHasNewCode(true);
+      }
     }
   };
 
@@ -2645,7 +2778,30 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}>
+    <>
+      {!currentUser && (
+        <ClassroomLoginModal onLoginSuccess={handleLoginSuccess} />
+      )}
+
+      <div ref={containerRef} className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}>
+        {currentUser && (
+          <ClassroomHeaderBar
+            currentUser={currentUser}
+            peers={peers}
+            cameraActive={cameraActive}
+            micActive={micActive}
+            onToggleCamera={handleToggleCamera}
+            onToggleMic={handleToggleMic}
+            onBroadcastCode={handleTeacherBroadcast}
+            onLoadTeacherCode={handleLoadTeacherCode}
+            teacherHasNewCode={teacherHasNewCode}
+            autoSyncWithTeacher={autoSyncWithTeacher}
+            onToggleAutoSync={() => setAutoSyncWithTeacher((prev) => !prev)}
+            onLogout={handleLogout}
+            onToggleVideoTiles={() => setIsVideoTilesOpen((prev) => !prev)}
+            isVideoTilesOpen={isVideoTilesOpen}
+          />
+        )}
       {/* Top Header & Actions */}
       <div className="tb">
         <b>Python Studio</b>
@@ -2964,6 +3120,21 @@ export default function App() {
           </div>
         </div>
       </div>
+
+      {/* Floating Classroom Video & Mic Tiles */}
+      {currentUser && isVideoTilesOpen && (
+        <ClassroomVideoTiles
+          currentUser={currentUser}
+          peers={peers}
+          mediaStream={mediaStream}
+          cameraActive={cameraActive}
+          micActive={micActive}
+          onToggleCamera={handleToggleCamera}
+          onToggleMic={handleToggleMic}
+          onClose={() => setIsVideoTilesOpen(false)}
+        />
+      )}
     </div>
-  );
+  </>
+);
 }

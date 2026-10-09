@@ -46,9 +46,10 @@ body {
 .app {
   height: 100vh;
   height: 100dvh;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) 26%;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  overflow: hidden;
 }
 
 /* Toolbar */
@@ -120,6 +121,7 @@ button.go:hover {
 /* Workspace split */
 .work {
   display: grid;
+  flex: 1;
   min-height: 0;
   position: relative;
 }
@@ -1513,11 +1515,13 @@ textarea#code {
 
 /* Bottom Deck: Terminal / Trace / Turtle */
 .term-deck {
+  height: 26%;
+  min-height: 160px;
+  flex-shrink: 0;
   background: #111827;
   color: #e2e8f0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 

@@ -1,0 +1,299 @@
+import React, { useState } from 'react';
+import {
+  GraduationCap,
+  Crown,
+  Radio,
+  Users,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  LogOut,
+  Download,
+  Share2,
+  ExternalLink,
+  ChevronDown,
+  Sparkles,
+  CheckCircle,
+} from 'lucide-react';
+import { ClassroomUser } from './classroomTypes';
+
+interface ClassroomHeaderBarProps {
+  currentUser: ClassroomUser;
+  peers: ClassroomUser[];
+  cameraActive: boolean;
+  micActive: boolean;
+  onToggleCamera: () => void;
+  onToggleMic: () => void;
+  onBroadcastCode: () => void;
+  onLoadTeacherCode: () => void;
+  teacherHasNewCode: boolean;
+  autoSyncWithTeacher: boolean;
+  onToggleAutoSync: () => void;
+  onLogout: () => void;
+  onToggleVideoTiles: () => void;
+  isVideoTilesOpen: boolean;
+}
+
+export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
+  currentUser,
+  peers,
+  cameraActive,
+  micActive,
+  onToggleCamera,
+  onToggleMic,
+  onBroadcastCode,
+  onLoadTeacherCode,
+  teacherHasNewCode,
+  autoSyncWithTeacher,
+  onToggleAutoSync,
+  onLogout,
+  onToggleVideoTiles,
+  isVideoTilesOpen,
+}) => {
+  const [showPeersDropdown, setShowPeersDropdown] = useState(false);
+  const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
+
+  const isTeacher = currentUser.role === 'teacher';
+  const teachersCount = peers.filter((p) => p.role === 'teacher').length;
+  const studentsCount = peers.filter((p) => p.role === 'student').length;
+
+  const handleBroadcastClick = () => {
+    onBroadcastCode();
+    setBroadcastSentAnim(true);
+    setTimeout(() => setBroadcastSentAnim(false), 2000);
+  };
+
+  const handleOpenNewStudentWindow = () => {
+    // Open in new window or tab
+    window.open(window.location.href, '_blank');
+  };
+
+  return (
+    <header className="bg-[#0b1120] border-b border-[#1e293b] px-3 py-1.5 flex items-center justify-between gap-3 text-xs flex-wrap z-30">
+      {/* Left: Role and User Badge */}
+      <div className="flex items-center gap-2">
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-[11px] shadow-sm ${
+            isTeacher
+              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+              : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+          }`}
+        >
+          {isTeacher ? <Crown className="w-3.5 h-3.5 text-amber-400" /> : <GraduationCap className="w-3.5 h-3.5 text-sky-400" />}
+          <span>{currentUser.username}</span>
+          <span className="text-[10px] opacity-75 font-mono">({isTeacher ? 'Teacher' : 'Student'})</span>
+        </div>
+
+        {/* Window Session ID */}
+        <div
+          className="hidden sm:flex items-center gap-1 font-mono text-[10px] text-slate-400 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-md"
+          title="Unique Window Session ID"
+        >
+          <span className="opacity-60">ID:</span>
+          <span className="text-slate-300 font-semibold">{currentUser.sessionId}</span>
+        </div>
+
+        {/* Connected Participants Dropdown Trigger */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setShowPeersDropdown((prev) => !prev)}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white transition-colors"
+            title="View all connected classroom members"
+          >
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <Users className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-semibold">{peers.length} Online</span>
+            <ChevronDown className="w-3 h-3 text-slate-400" />
+          </button>
+
+          {/* Peers Dropdown */}
+          {showPeersDropdown && (
+            <div className="absolute left-0 top-full mt-1.5 w-64 bg-[#0f172a] border border-slate-700 rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
+                <span className="font-bold text-slate-200">Classroom Peers</span>
+                <span className="text-[10px] text-slate-400">
+                  {teachersCount} Teacher · {studentsCount} Student{studentsCount === 1 ? '' : 's'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                {peers.map((peer) => (
+                  <div
+                    key={peer.sessionId}
+                    className={`flex items-center justify-between p-1.5 rounded-lg text-xs ${
+                      peer.sessionId === currentUser.sessionId
+                        ? 'bg-slate-800/80 border border-slate-700'
+                        : 'bg-slate-900/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: peer.avatarColor || '#38bdf8' }}
+                      />
+                      <span className="font-medium text-slate-200 truncate">
+                        {peer.username}
+                        {peer.sessionId === currentUser.sessionId && ' (You)'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <span
+                        className={`text-[9px] font-mono px-1 rounded ${
+                          peer.role === 'teacher'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : 'bg-sky-500/20 text-sky-300'
+                        }`}
+                      >
+                        {peer.role}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-400">{peer.sessionId}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-2 pt-2 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-400">
+                <button
+                  type="button"
+                  onClick={handleOpenNewStudentWindow}
+                  className="text-sky-400 hover:text-sky-300 flex items-center gap-1 underline"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  Open Student in New Tab
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowPeersDropdown(false)}
+                  className="text-slate-400 hover:text-slate-200"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Center: Live Broadcast & Content Sync Controls */}
+      <div className="flex items-center gap-2">
+        {/* TEACHER CONTROLS */}
+        {isTeacher ? (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleBroadcastClick}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-bold text-xs transition-all shadow-sm ${
+                broadcastSentAnim
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-amber-900/30'
+              }`}
+              title="Broadcast current code live to all connected student windows"
+            >
+              {broadcastSentAnim ? (
+                <>
+                  <CheckCircle className="w-3.5 h-3.5 text-white animate-bounce" />
+                  <span>Code Broadcasted!</span>
+                </>
+              ) : (
+                <>
+                  <Radio className="w-3.5 h-3.5 text-amber-100 animate-pulse" />
+                  <span>Broadcast Code to Students</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          /* STUDENT CONTROLS: Live content from teacher with local editing capability */
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onLoadTeacherCode}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-semibold text-xs transition-all ${
+                teacherHasNewCode
+                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 animate-pulse'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+              }`}
+              title="Load the teacher's latest broadcasted code (you can modify it freely!)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>{teacherHasNewCode ? 'New Teacher Code Available!' : 'Reload Teacher Code'}</span>
+            </button>
+
+            <label
+              className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer bg-slate-900 px-2 py-0.5 rounded border border-slate-800"
+              title="Automatically sync editor when teacher broadcasts new code"
+            >
+              <input
+                type="checkbox"
+                checked={autoSyncWithTeacher}
+                onChange={onToggleAutoSync}
+                className="rounded border-slate-700 text-sky-500 focus:ring-0"
+              />
+              <span>Live Auto-Sync</span>
+            </label>
+          </div>
+        )}
+      </div>
+
+      {/* Right: Camera / Mic and Video Tiles Toggle */}
+      <div className="flex items-center gap-2">
+        {/* Toggle Classroom Cameras Tile */}
+        <button
+          type="button"
+          onClick={onToggleVideoTiles}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+            isVideoTilesOpen
+              ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-750'
+          }`}
+          title="Toggle live camera and avatar tiles"
+        >
+          <Video className="w-3.5 h-3.5 text-sky-400" />
+          <span className="hidden sm:inline">Camera Tiles</span>
+        </button>
+
+        {/* Mic Toggle */}
+        <button
+          type="button"
+          onClick={onToggleMic}
+          className={`p-1.5 rounded-md border transition-colors ${
+            micActive
+              ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
+              : 'bg-red-500/10 text-red-400 border-red-500/30'
+          }`}
+          title={micActive ? 'Mute Microphone' : 'Unmute Microphone'}
+        >
+          {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Camera Toggle */}
+        <button
+          type="button"
+          onClick={onToggleCamera}
+          className={`p-1.5 rounded-md border transition-colors ${
+            cameraActive
+              ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
+              : 'bg-red-500/10 text-red-400 border-red-500/30'
+          }`}
+          title={cameraActive ? 'Turn Camera Off' : 'Turn Camera On'}
+        >
+          {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+        </button>
+
+        {/* Switch Role / Exit */}
+        <button
+          type="button"
+          onClick={onLogout}
+          className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-900 hover:bg-red-950/40 text-slate-400 hover:text-red-400 border border-slate-800 transition-colors"
+          title="Exit Classroom / Switch Role"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Switch</span>
+        </button>
+      </div>
+    </header>
+  );
+};
