@@ -10,8 +10,9 @@ import { ClassroomLoginModal } from './components/ClassroomLoginModal';
 import { ClassroomHeaderBar } from './components/ClassroomHeaderBar';
 import { ClassroomVideoTiles } from './components/ClassroomVideoTiles';
 import { ClassroomConversationPanel } from './components/ClassroomConversationPanel';
+import { StudentDashboard } from './components/StudentDashboard';
 import { webRTCService } from './services/webRTCService';
-import { Eye, Radio, Sparkles } from 'lucide-react';
+import { Eye, Radio, Sparkles, Activity, Clock, Crown } from 'lucide-react';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -192,9 +193,27 @@ export default function App() {
   const [micActive, setMicActive] = useState<boolean>(true);
   const [isVideoTilesOpen, setIsVideoTilesOpen] = useState<boolean>(false);
   const [isConversationOpen, setIsConversationOpen] = useState<boolean>(false);
+  const [isStudentDashboardOpen, setIsStudentDashboardOpen] = useState<boolean>(false);
   const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
   const [speakingMap, setSpeakingMap] = useState<Record<string, boolean>>({});
   const [latestTeacherActionNotice, setLatestTeacherActionNotice] = useState<string>('');
+
+  // Live session duration timer for student
+  const [sessionDurationStr, setSessionDurationStr] = useState<string>('00:00');
+  useEffect(() => {
+    if (!currentUser?.joinedAt) return;
+    const calc = () => {
+      const sec = Math.max(0, Math.floor((Date.now() - currentUser.joinedAt) / 1000));
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      const h = Math.floor(sec / 3600);
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setSessionDurationStr(h > 0 ? `${pad(h)}:${pad(m % 60)}:${pad(s)}` : `${pad(m)}:${pad(s)}`);
+    };
+    calc();
+    const t = setInterval(calc, 1000);
+    return () => clearInterval(t);
+  }, [currentUser?.joinedAt]);
 
   // Default to student View Screen Only mode!
   const [studentViewOnly, setStudentViewOnly] = useState<boolean>(true);
@@ -3106,30 +3125,64 @@ export default function App() {
             isConversationOpen={isConversationOpen}
             onToggleConversation={() => setIsConversationOpen((prev) => !prev)}
             latestTeacherActionNotice={latestTeacherActionNotice}
+            onToggleDashboard={() => setIsStudentDashboardOpen((prev) => !prev)}
+            isDashboardOpen={isStudentDashboardOpen}
           />
         )}
 
-        {/* Student View Screen Only Banner */}
+        {/* Professional Student View Screen Only & Active Stats Banner */}
         {isStudent && studentViewOnly && (
-          <div className="bg-gradient-to-r from-sky-950/95 via-sky-900/90 to-indigo-950/95 border-b border-sky-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-sky-200 shadow-sm z-20">
-            <div className="flex items-center gap-2 overflow-hidden">
-              <div className="w-5 h-5 rounded-md bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 flex-shrink-0">
-                <Eye className="w-3.5 h-3.5 animate-pulse" />
+          <div className="bg-[#0b1328] border-b border-sky-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 shadow-sm z-20 flex-wrap gap-2">
+            <div className="flex items-center gap-2.5 overflow-hidden">
+              <div className="flex items-center gap-1.5 text-sky-300 font-bold">
+                <Eye className="w-3.5 h-3.5 animate-pulse text-sky-400" />
+                <span>View Screen Only</span>
               </div>
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="font-bold text-sky-100">Student View Screen Only</span>
-                <span className="hidden sm:inline text-sky-300/80">· Live mirroring Teacher's screen & actions in real-time</span>
+              <span className="text-slate-700 hidden sm:inline">|</span>
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <Crown className="w-3 h-3 text-amber-400" />
+                <span className="text-slate-400">Teacher:</span>
+                <span className="font-semibold text-slate-100">
+                  {peers.find((p) => p.role === 'teacher')?.username ||
+                    classroomSync.getActiveTeacherClass()?.teacherName ||
+                    'Instructor'}
+                </span>
+              </div>
+              <span className="text-slate-700 hidden md:inline">|</span>
+              <div className="hidden md:flex items-center gap-1.5 font-mono text-slate-300">
+                <Clock className="w-3 h-3 text-sky-400" />
+                <span className="text-slate-400">Duration:</span>
+                <span className="font-bold text-slate-100">{sessionDurationStr}</span>
+              </div>
+              <span className="text-slate-700 hidden lg:inline">|</span>
+              <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400">
+                <span>Class:</span>
+                <span className="font-mono font-bold text-sky-400">{currentUser.classCode}</span>
               </div>
             </div>
+
             <div className="flex items-center gap-2 flex-shrink-0">
               {latestTeacherActionNotice && (
-                <span className="hidden md:flex items-center gap-1 text-[11px] font-mono text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
+                <span className="hidden lg:flex items-center gap-1 text-[11px] font-mono text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
                   <Sparkles className="w-3 h-3 text-amber-400" />
                   <span>{latestTeacherActionNotice}</span>
                 </span>
               )}
-              <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Screen Synchronized
+              <button
+                type="button"
+                onClick={() => setIsStudentDashboardOpen((prev) => !prev)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all ${
+                  isStudentDashboardOpen
+                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
+                    : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/40 hover:border-emerald-400'
+                }`}
+                title="Toggle full Read-Only Student Dashboard with active classroom statistics"
+              >
+                <Activity className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{isStudentDashboardOpen ? 'Close Dashboard' : 'Classroom Dashboard'}</span>
+              </button>
+              <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Synced
               </span>
             </div>
           </div>
@@ -3494,6 +3547,19 @@ export default function App() {
           isOpen={isConversationOpen}
           onClose={() => setIsConversationOpen(false)}
           speakingMap={speakingMap}
+        />
+      )}
+
+      {/* Read-Only Student Classroom Dashboard with Live Stats */}
+      {currentUser && isStudent && (
+        <StudentDashboard
+          currentUser={currentUser}
+          peers={peers}
+          activeTab={activeTab}
+          latestTeacherActionNotice={latestTeacherActionNotice}
+          isOpen={isStudentDashboardOpen}
+          onClose={() => setIsStudentDashboardOpen(false)}
+          onOpenConversation={() => setIsConversationOpen(true)}
         />
       )}
     </div>

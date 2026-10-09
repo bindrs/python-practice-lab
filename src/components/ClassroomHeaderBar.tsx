@@ -23,6 +23,7 @@ import {
   Database,
   MessageSquare,
   Eye,
+  Activity,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -44,6 +45,8 @@ interface ClassroomHeaderBarProps {
   isConversationOpen: boolean;
   onToggleConversation: () => void;
   latestTeacherActionNotice?: string;
+  onToggleDashboard?: () => void;
+  isDashboardOpen?: boolean;
 }
 
 export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
@@ -64,6 +67,8 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   isConversationOpen,
   onToggleConversation,
   latestTeacherActionNotice,
+  onToggleDashboard,
+  isDashboardOpen,
 }) => {
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
@@ -293,6 +298,23 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
 
       {/* Right: Conversation, Camera / Mic and Video Tiles Toggle */}
       <div className="flex items-center gap-2">
+        {/* Student Classroom Dashboard Toggle */}
+        {!isTeacher && onToggleDashboard && (
+          <button
+            type="button"
+            onClick={onToggleDashboard}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+              isDashboardOpen
+                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold'
+                : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30 hover:border-emerald-500/50'
+            }`}
+            title="Open Student Classroom Dashboard (Live session duration, active teacher & classroom statistics)"
+          >
+            <Activity className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Dashboard</span>
+          </button>
+        )}
+
         {/* Toggle Live Classroom Conversation & Audio Call */}
         <button
           type="button"
