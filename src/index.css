@@ -1678,6 +1678,39 @@ textarea#code {
   margin-top: 14px;
 }
 
+/* VS Code Syntax Highlighting */
+#code-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin: 0;
+  padding: 6px 10px 6px 46px;
+  font: 700 14px/24px "JetBrains Mono", monospace;
+  color: var(--ink);
+  pointer-events: none;
+  white-space: pre;
+  overflow: hidden;
+  z-index: 1;
+}
+
+textarea#code {
+  color: transparent !important;
+  caret-color: var(--ink);
+  background: transparent !important;
+  position: relative;
+  z-index: 2;
+}
+
+.vsc-kw { color: #c586c0; font-weight: 700; }
+.vsc-builtin { color: #dcdcaa; }
+.vsc-str { color: #ce9178; }
+.vsc-num { color: #b5cea8; }
+.vsc-comment { color: #6a9955; font-style: italic; }
+.vsc-op { color: #d4d4d4; }
+.vsc-id { color: #9cdcfe; }
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }

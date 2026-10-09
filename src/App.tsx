@@ -1443,16 +1443,16 @@ export default function App() {
                 <span class="mem-badge-type">${esc(t)}</span>
               </div>
               <div class="mem-slot ${slotClass}" ${slotStyle}>
-                ${valDisplay}
+                ${(() => {
+                  const histList = (memHistoryOnRef.current && varHist[k]) ? varHist[k] : [];
+                  const inlineHistoryHtml = histList.length > 0 ? `
+                    <div style="display:flex; align-items:center; gap:4px; font-size:11px; opacity:0.35; margin-bottom:4px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace;">
+                      ${histList.map(hx => `<span>${esc(rep(hx))}</span>`).join(' <span>➔</span> ')} <span>➔</span>
+                    </div>
+                  ` : '';
+                  return inlineHistoryHtml + `<div style="font-weight:700; font-size:1.15em; color:var(--text);">${valDisplay}</div>`;
+                })()}
               </div>
-              ${memHistoryOnRef.current && varHist[k] && varHist[k].length ? `
-                <div class="var-history-trail">
-                  <span class="history-title">History:</span>
-                  <div class="history-pills">
-                    ${varHist[k].map(hx => `<span class="history-pill" title="Previous value">${esc(rep(hx))}</span>`).join('<span class="history-arrow">➔</span>')}
-                  </div>
-                </div>
-              ` : ''}
             </div>
           `;
         })
@@ -1992,6 +1992,48 @@ export default function App() {
       ],
     ];
 
+    function highlightPython(text: string): string {
+      const lines = text.split('\n');
+      return lines.map(line => {
+        const escHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        const commentIdx = line.indexOf('#');
+        let codePart = line;
+        let commentPart = '';
+        if (commentIdx !== -1) {
+          codePart = line.slice(0, commentIdx);
+          commentPart = line.slice(commentIdx);
+        }
+        const tokenRegex = /("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\b(?:def|if|elif|else|while|for|in|return|break|continue|pass|import|from|and|or|not|True|False|None)\b|\b(?:print|int|str|float|len|type|sum|max|min|range)\b|\b\d+(?:\.\d+)?\b|[+\-*/%=<>!&|,():[\]{}]|[a-zA-Z_]\w*|\s+|.)/g;
+        let match;
+        let html = '';
+        while ((match = tokenRegex.exec(codePart)) !== null) {
+          const tok = match[0];
+          if (!tok) continue;
+          if (/^\s+$/.test(tok)) {
+            html += tok.replace(/ /g, '&nbsp;');
+          } else if (/^["']/.test(tok)) {
+            html += `<span class="vsc-str">${escHtml(tok)}</span>`;
+          } else if (/^\d/.test(tok)) {
+            html += `<span class="vsc-num">${escHtml(tok)}</span>`;
+          } else if (/^(def|if|elif|else|while|for|in|return|break|continue|pass|import|from|and|or|not|True|False|None)$/.test(tok)) {
+            html += `<span class="vsc-kw">${escHtml(tok)}</span>`;
+          } else if (/^(print|int|str|float|len|type|sum|max|min|range)$/.test(tok)) {
+            html += `<span class="vsc-builtin">${escHtml(tok)}</span>`;
+          } else if (/^[+\-*/%=<>!&|,():[\]{}]$/.test(tok)) {
+            html += `<span class="vsc-op">${escHtml(tok)}</span>`;
+          } else if (/^[a-zA-Z_]\w*$/.test(tok)) {
+            html += `<span class="vsc-id">${escHtml(tok)}</span>`;
+          } else {
+            html += escHtml(tok);
+          }
+        }
+        if (commentPart) {
+          html += `<span class="vsc-comment">${escHtml(commentPart)}</span>`;
+        }
+        return html;
+      }).join('\n');
+    }
+
     const exSelect = $('#ex') as HTMLSelectElement;
     if (exSelect && exSelect.options.length <= 1) {
       U.forEach((x, i) => {
@@ -2004,6 +2046,8 @@ export default function App() {
         const i = exSelect.value;
         if (i === '') return;
         code.value = U[+i][2];
+        const highlightEl = $('#code-highlight');
+        if (highlightEl) highlightEl.innerHTML = highlightPython(code.value);
         reset();
         say_('**Goal:** ' + U[+i][1]);
       };
@@ -2211,7 +2255,25 @@ export default function App() {
       'link', 'meta', 'param', 'source', 'track', 'wbr'
     ]);
 
-    const handleInput = () => reset();
+    const highlightEl = $('#code-highlight');
+    const updateHighlight = () => {
+      if (highlightEl) {
+        highlightEl.innerHTML = highlightPython(code.value);
+      }
+    };
+
+    const handleInput = () => {
+      updateHighlight();
+      reset();
+    };
+
+    const handleScroll = () => {
+      if (highlightEl) {
+        highlightEl.scrollTop = code.scrollTop;
+        highlightEl.scrollLeft = code.scrollLeft;
+      }
+    };
+
     const handleKeydown = (e: KeyboardEvent) => {
       const active = autoTagCloserRef.current;
       const start = code.selectionStart;
@@ -2402,15 +2464,18 @@ export default function App() {
     };
 
     code.addEventListener('input', handleInput);
+    code.addEventListener('scroll', handleScroll);
     code.addEventListener('keydown', handleKeydown);
 
     code.value = DEFAULT;
+    updateHighlight();
     reset();
 
     return () => {
       gen++;
       if (wait) wait();
       code.removeEventListener('input', handleInput);
+      code.removeEventListener('scroll', handleScroll);
       code.removeEventListener('keydown', handleKeydown);
     };
   }, []);
@@ -2453,6 +2518,7 @@ export default function App() {
           <div className="ed">
             <div className="mark" id="mark" />
             <div className="gut" id="gut" />
+            <pre id="code-highlight" aria-hidden="true"></pre>
             <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
           </div>
         </aside>
