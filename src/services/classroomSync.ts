@@ -1,4 +1,11 @@
-import { BroadcastMessage, ClassroomUser, UserRole } from '../components/classroomTypes';
+import {
+  BroadcastMessage,
+  ClassroomUser,
+  UserRole,
+  ChatMessage,
+  TeacherLiveAction,
+  WebRTCSignalData,
+} from '../components/classroomTypes';
 import { insforgeService } from './insforgeService';
 
 const CHANNEL_NAME = 'python_classroom_broadcast_v2';
@@ -253,6 +260,113 @@ export class ClassroomSyncService {
       code,
       notes,
       timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast real-time teacher action (Run, Step, Reset, Switch Tab, Select Example)
+   */
+  public broadcastTeacherAction(action: TeacherLiveAction) {
+    if (!this.currentUser) return;
+    // Also persist in InsForge DB
+    insforgeService.saveLiveAction(action, this.currentUser.classCode).catch(() => {});
+
+    this.broadcast({
+      action: 'teacher_action',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      teacherAction: action,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast real-time code typing/editing by teacher
+   */
+  public broadcastCodeChange(code: string) {
+    if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+    this.broadcast({
+      action: 'code_change',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      code,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast a chat message to classroom
+   */
+  public broadcastChatMessage(msg: ChatMessage) {
+    if (!this.currentUser) return;
+    insforgeService.saveMessage(msg, this.currentUser.classCode).catch(() => {});
+
+    this.broadcast({
+      action: 'chat_message',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      chatMessage: msg,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast WebRTC signaling (offer, answer, ice-candidate)
+   */
+  public broadcastWebRTCSignal(signalData: WebRTCSignalData) {
+    if (!this.currentUser) return;
+    this.broadcast({
+      action: 'webrtc_signal',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      targetSessionId: signalData.targetSessionId,
+      webrtcSignal: signalData,
+      timestamp: Date.now(),
+    });
+  }
+
+  /**
+   * Broadcast student raise hand
+   */
+  public broadcastRaiseHand() {
+    if (!this.currentUser) return;
+    this.broadcast({
+      action: 'raise_hand',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      timestamp: Date.now(),
+    });
+  }
+
+  public onTeacherAction(callback: (action: TeacherLiveAction) => void): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'teacher_action' && msg.teacherAction) {
+        callback(msg.teacherAction);
+      }
+    });
+  }
+
+  public onCodeChange(callback: (code: string) => void): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'code_change' && msg.code !== undefined) {
+        callback(msg.code);
+      }
+    });
+  }
+
+  public onChatMessage(callback: (msg: ChatMessage) => void): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'chat_message' && msg.chatMessage) {
+        callback(msg.chatMessage);
+      }
+    });
+  }
+
+  public onWebRTCSignal(callback: (signal: WebRTCSignalData) => void): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'webrtc_signal' && msg.webrtcSignal) {
+        callback(msg.webrtcSignal);
+      }
     });
   }
 

@@ -9,6 +9,7 @@ import {
   Minimize2,
   Maximize2,
   X,
+  Volume2,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -16,8 +17,10 @@ interface ClassroomVideoTilesProps {
   currentUser: ClassroomUser;
   peers: ClassroomUser[];
   mediaStream: MediaStream | null;
+  remoteStreams?: Map<string, MediaStream>;
   cameraActive: boolean;
   micActive: boolean;
+  speakingMap?: Record<string, boolean>;
   onToggleCamera: () => void;
   onToggleMic: () => void;
   onClose: () => void;
@@ -27,8 +30,10 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
   currentUser,
   peers,
   mediaStream,
+  remoteStreams = new Map(),
   cameraActive,
   micActive,
+  speakingMap = {},
   onToggleCamera,
   onToggleMic,
   onClose,
@@ -44,13 +49,14 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
 
   // Combine peers list ensuring current user is included
   const otherPeers = peers.filter((p) => p.sessionId !== currentUser.sessionId);
+  const isSelfSpeaking = !!speakingMap[currentUser.sessionId];
 
   return (
     <div
       className={`fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-40 bg-[#0f172a]/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden transition-all duration-200 ${
         isMinimized
           ? 'w-52 sm:w-64 h-11'
-          : 'w-[calc(100vw-20px)] max-w-sm sm:w-80 md:w-96 max-h-[460px]'
+          : 'w-[calc(100vw-20px)] max-w-sm sm:w-80 md:w-96 max-h-[490px]'
       }`}
     >
       {/* Header Bar */}
@@ -58,7 +64,7 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-            Classroom Video & Mic
+            Classroom Video & Audio
             <span className="text-[10px] text-slate-400 font-mono font-normal">
               ({peers.length} active)
             </span>
@@ -87,9 +93,15 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
 
       {/* Tiles Body */}
       {!isMinimized && (
-        <div className="p-3 space-y-2.5 overflow-y-auto max-h-[390px]">
+        <div className="p-3 space-y-2.5 overflow-y-auto max-h-[420px]">
           {/* 1. Self Video Tile */}
-          <div className="relative aspect-video rounded-xl bg-slate-950 border border-slate-800 overflow-hidden shadow-inner group">
+          <div
+            className={`relative aspect-video rounded-xl bg-slate-950 border overflow-hidden shadow-inner group transition-all ${
+              isSelfSpeaking
+                ? 'border-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.35)]'
+                : 'border-slate-800'
+            }`}
+          >
             {mediaStream && cameraActive ? (
               <video
                 ref={selfVideoRef}
@@ -101,12 +113,26 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-900 to-slate-950 text-slate-400">
                 <div
-                  className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg"
+                  className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg transition-transform ${
+                    isSelfSpeaking ? 'scale-110 ring-4 ring-emerald-400/50' : ''
+                  }`}
                   style={{ backgroundColor: currentUser.avatarColor || '#38bdf8' }}
                 >
-                  {currentUser.role === 'teacher' ? <Crown className="w-6 h-6 text-amber-300" /> : currentUser.username.charAt(0).toUpperCase()}
+                  {currentUser.role === 'teacher' ? (
+                    <Crown className="w-6 h-6 text-amber-300" />
+                  ) : (
+                    currentUser.username.charAt(0).toUpperCase()
+                  )}
                 </div>
-                <span className="text-[11px] font-medium text-slate-400">Camera Off</span>
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+                  {isSelfSpeaking ? (
+                    <span className="text-emerald-400 font-bold flex items-center gap-1">
+                      <Volume2 className="w-3 h-3 animate-pulse" /> Speaking...
+                    </span>
+                  ) : (
+                    <span>Camera Off</span>
+                  )}
+                </div>
               </div>
             )}
 
@@ -117,7 +143,23 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
               ) : (
                 <GraduationCap className="w-3 h-3 text-sky-400" />
               )}
-              <span>{currentUser.username} (You)</span>
+              <span className="truncate max-w-[100px]">{currentUser.username} (You)</span>
+              {isSelfSpeaking && (
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+              )}
+            </div>
+
+            {/* Role indicator pill */}
+            <div className="absolute top-2 right-2">
+              <span
+                className={`text-[9px] px-1.5 py-0.5 rounded font-bold uppercase tracking-wider ${
+                  currentUser.role === 'teacher'
+                    ? 'bg-amber-500/80 text-amber-950'
+                    : 'bg-sky-500/80 text-sky-950'
+                }`}
+              >
+                {currentUser.role === 'teacher' ? 'Teacher' : 'Student (View Only)'}
+              </span>
             </div>
 
             {/* Controls Overlay */}
@@ -152,46 +194,119 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
           {/* 2. Other Peers Tiles (Grid) */}
           {otherPeers.length > 0 ? (
             <div className="grid grid-cols-2 gap-2">
-              {otherPeers.map((peer) => (
-                <div
-                  key={peer.sessionId}
-                  className="relative aspect-video rounded-lg bg-slate-950 border border-slate-800 overflow-hidden flex flex-col items-center justify-center p-2 text-center"
-                >
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow"
-                    style={{ backgroundColor: peer.avatarColor || '#a855f7' }}
-                  >
-                    {peer.role === 'teacher' ? (
-                      <Crown className="w-4 h-4 text-amber-300" />
-                    ) : (
-                      peer.username.charAt(0).toUpperCase()
-                    )}
-                  </div>
-                  <span className="text-[10px] font-semibold text-slate-300 mt-1 truncate max-w-[90%]">
-                    {peer.username}
-                  </span>
-                  <span className="text-[8px] font-mono text-slate-500">{peer.role}</span>
+              {otherPeers.map((peer) => {
+                const isPeerSpeaking = !!speakingMap[peer.sessionId];
+                const remoteStream = remoteStreams.get(peer.sessionId);
 
-                  {/* Status Indicator */}
-                  <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                    {peer.micActive ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" title="Mic active" />
-                    ) : (
-                      <MicOff className="w-2.5 h-2.5 text-slate-500" />
-                    )}
-                  </div>
-                </div>
-              ))}
+                return (
+                  <PeerVideoTile
+                    key={peer.sessionId}
+                    peer={peer}
+                    remoteStream={remoteStream}
+                    isSpeaking={isPeerSpeaking}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-3 text-[11px] text-slate-400 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
               <span>No other students or teachers in this room yet.</span>
               <br />
               <span className="text-[10px] text-slate-500">
-                Open another browser window or tab to join as a peer.
+                Open student in another tab to see live audio & screen mirroring.
               </span>
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+interface PeerVideoTileProps {
+  peer: ClassroomUser;
+  remoteStream?: MediaStream;
+  isSpeaking: boolean;
+}
+
+const PeerVideoTile: React.FC<PeerVideoTileProps> = ({ peer, remoteStream, isSpeaking }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (remoteStream) {
+      if (videoRef.current && peer.cameraActive) {
+        videoRef.current.srcObject = remoteStream;
+      }
+      if (audioRef.current && peer.micActive) {
+        audioRef.current.srcObject = remoteStream;
+      }
+    }
+  }, [remoteStream, peer.cameraActive, peer.micActive]);
+
+  const hasVideoTrack = remoteStream && remoteStream.getVideoTracks().length > 0 && peer.cameraActive;
+
+  return (
+    <div
+      className={`relative aspect-video rounded-lg bg-slate-950 border overflow-hidden flex flex-col items-center justify-center p-2 text-center transition-all ${
+        isSpeaking
+          ? 'border-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.3)] ring-1 ring-emerald-400/50'
+          : 'border-slate-800'
+      }`}
+    >
+      {/* Hidden audio element to play remote audio */}
+      {remoteStream && <audio ref={audioRef} autoPlay playsInline />}
+
+      {hasVideoTrack ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          className="w-full h-full object-cover"
+        />
+      ) : (
+        <>
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shadow transition-transform ${
+              isSpeaking ? 'scale-110 ring-2 ring-emerald-400' : ''
+            }`}
+            style={{ backgroundColor: peer.avatarColor || '#a855f7' }}
+          >
+            {peer.role === 'teacher' ? (
+              <Crown className="w-4 h-4 text-amber-300" />
+            ) : (
+              peer.username.charAt(0).toUpperCase()
+            )}
+          </div>
+          <span className="text-[10px] font-semibold text-slate-300 mt-1 truncate max-w-[90%]">
+            {peer.username}
+          </span>
+          <span className="text-[8px] font-mono text-slate-500">
+            {peer.role === 'teacher' ? 'Teacher' : 'Student (View Only)'}
+          </span>
+        </>
+      )}
+
+      {/* Status Indicators */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+        {isSpeaking ? (
+          <span className="px-1 py-0.5 rounded bg-emerald-500/80 text-white text-[8px] font-bold flex items-center gap-0.5">
+            <Volume2 className="w-2.5 h-2.5 animate-pulse" /> Speaking
+          </span>
+        ) : peer.micActive ? (
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Mic active" />
+        ) : (
+          <span title="Mic muted">
+            <MicOff className="w-2.5 h-2.5 text-slate-500" />
+          </span>
+        )}
+      </div>
+
+      {/* Name banner overlay if video is active */}
+      {hasVideoTrack && (
+        <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between px-1.5 py-0.5 rounded bg-black/60 text-[9px] text-white backdrop-blur-xs">
+          <span className="truncate">{peer.username}</span>
+          <span className="text-[8px] opacity-75">{peer.role}</span>
         </div>
       )}
     </div>

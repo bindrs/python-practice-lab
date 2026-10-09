@@ -21,6 +21,8 @@ import {
   AlertTriangle,
   ShieldCheck,
   Database,
+  MessageSquare,
+  Eye,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -39,6 +41,9 @@ interface ClassroomHeaderBarProps {
   onLogout: () => void;
   onToggleVideoTiles: () => void;
   isVideoTilesOpen: boolean;
+  isConversationOpen: boolean;
+  onToggleConversation: () => void;
+  latestTeacherActionNotice?: string;
 }
 
 export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
@@ -56,6 +61,9 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   onLogout,
   onToggleVideoTiles,
   isVideoTilesOpen,
+  isConversationOpen,
+  onToggleConversation,
+  latestTeacherActionNotice,
 }) => {
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
@@ -224,69 +232,82 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Center: Live Broadcast & Content Sync Controls */}
+      {/* Center: Live Screen Broadcast & View Screen Only Mode Indicators */}
       <div className="flex items-center gap-2">
         {/* TEACHER CONTROLS */}
         {isTeacher ? (
           <div className="flex items-center gap-2">
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-xs animate-pulse"
+              title="All actions performed by you (typing code, Run, Step, Reset, switching tabs, selecting examples) are automatically mirrored on connected students' screens live in real-time"
+            >
+              <Radio className="w-3.5 h-3.5 text-rose-400" />
+              <span>Broadcasting Screen Live</span>
+              <span className="hidden lg:inline text-[10px] text-rose-400/80">({studentsCount} student{studentsCount === 1 ? '' : 's'} viewing)</span>
+            </div>
+
             <button
               type="button"
               onClick={handleBroadcastClick}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-bold text-xs transition-all shadow-sm ${
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-xs transition-all shadow-sm ${
                 broadcastSentAnim
                   ? 'bg-emerald-500 text-white'
-                  : 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white shadow-amber-900/30'
+                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/30'
               }`}
-              title="Broadcast current code live to all connected student windows"
+              title="Force re-sync entire code to all connected students"
             >
               {broadcastSentAnim ? (
                 <>
-                  <CheckCircle className="w-3.5 h-3.5 text-white animate-bounce" />
-                  <span>Code Broadcasted!</span>
+                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                  <span>Code Synced!</span>
                 </>
               ) : (
                 <>
-                  <Radio className="w-3.5 h-3.5 text-amber-100 animate-pulse" />
-                  <span>Broadcast Code to Students</span>
+                  <Radio className="w-3.5 h-3.5 text-amber-100" />
+                  <span className="hidden sm:inline">Sync Code to Students</span>
                 </>
               )}
             </button>
           </div>
         ) : (
-          /* STUDENT CONTROLS: Live content from teacher with local editing capability */
+          /* STUDENT CONTROLS: Strict View Screen Only Mode following Teacher */
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onLoadTeacherCode}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md font-semibold text-xs transition-all ${
-                teacherHasNewCode
-                  ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20 animate-pulse'
-                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
-              }`}
-              title="Load the teacher's latest broadcasted code (you can modify it freely!)"
+            <div
+              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-sky-500/20 text-sky-200 border border-sky-500/40 text-[11px] font-bold shadow-xs"
+              title="You are in View Screen Only mode. All actions performed by the teacher (Run, Step, Reset, Code editing, Tab switches) are mirroring live here."
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>{teacherHasNewCode ? 'New Teacher Code Available!' : 'Reload Teacher Code'}</span>
-            </button>
+              <Eye className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+              <span>View Screen Only</span>
+              <span className="hidden sm:inline text-sky-300 font-normal">· Following Teacher</span>
+            </div>
 
-            <label
-              className="hidden md:flex items-center gap-1.5 text-[11px] text-slate-300 cursor-pointer bg-slate-900 px-2 py-0.5 rounded border border-slate-800"
-              title="Automatically sync editor when teacher broadcasts new code"
-            >
-              <input
-                type="checkbox"
-                checked={autoSyncWithTeacher}
-                onChange={onToggleAutoSync}
-                className="rounded border-slate-700 text-sky-500 focus:ring-0"
-              />
-              <span>Live Auto-Sync</span>
-            </label>
+            {latestTeacherActionNotice && (
+              <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono animate-in fade-in">
+                <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
+                <span className="truncate max-w-[200px]">{latestTeacherActionNotice}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {/* Right: Camera / Mic and Video Tiles Toggle */}
+      {/* Right: Conversation, Camera / Mic and Video Tiles Toggle */}
       <div className="flex items-center gap-2">
+        {/* Toggle Live Classroom Conversation & Audio Call */}
+        <button
+          type="button"
+          onClick={onToggleConversation}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+            isConversationOpen
+              ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20 font-bold'
+              : 'bg-slate-900 hover:bg-slate-800 text-sky-300 border-sky-500/30 hover:border-sky-500/50'
+          }`}
+          title="Open Classroom Conversation (Voice Call, Chat, Questions & Hand Raise)"
+        >
+          <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
+          <span>Conversation & Audio</span>
+        </button>
+
         {/* Toggle Classroom Cameras Tile */}
         <button
           type="button"
@@ -299,7 +320,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           title="Toggle live camera and avatar tiles"
         >
           <Video className="w-3.5 h-3.5 text-sky-400" />
-          <span className="hidden sm:inline">Camera Tiles</span>
+          <span className="hidden sm:inline">Cameras</span>
         </button>
 
         {/* Mic Toggle */}

@@ -2090,3 +2090,40 @@ textarea#code {
   .term-deck { height: 220px; }
   .unified-stage { min-height: 280px; }
 }
+
+/* View Screen Only Mode */
+.view-only-textarea {
+  cursor: default !important;
+  background: rgba(11, 19, 41, 0.6) !important;
+  user-select: text !important;
+}
+
+.view-only-btn-disabled {
+  opacity: 0.65;
+  cursor: not-allowed !important;
+  border-style: dashed !important;
+}
+
+.view-only-badge {
+  font-size: 10px;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 1px 6px;
+  border-radius: 999px;
+  margin-left: 6px;
+  font-weight: 700;
+}
+
+@keyframes speakingPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(16, 185, 129, 0);
+  }
+}
+
+.speaking-pulse {
+  animation: speakingPulse 1.5s infinite;
+}

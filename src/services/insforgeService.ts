@@ -1,5 +1,5 @@
 import { createClient } from '@insforge/sdk';
-import { ClassroomUser } from '../components/classroomTypes';
+import { ClassroomUser, ChatMessage, TeacherLiveAction } from '../components/classroomTypes';
 
 const INSFORGE_URL =
   import.meta.env.VITE_INSFORGE_URL || 'https://xznb8vi4.us-east.insforge.app';
@@ -237,6 +237,116 @@ export class InsForgeClassroomService {
         teacherName: row.teacher_name,
         timestamp: Number(row.timestamp) || Date.now(),
       };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Save a chat message to InsForge database
+   */
+  public async saveMessage(msg: ChatMessage, classCode: string): Promise<boolean> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { error } = await insforge.database
+        .from('classroom_messages')
+        .insert([{
+          class_code: cleanCode,
+          sender_session_id: msg.senderSessionId,
+          sender_name: msg.senderName,
+          sender_role: msg.senderRole,
+          sender_avatar: msg.senderAvatar,
+          text: msg.text,
+          timestamp: msg.timestamp,
+        }]);
+
+      if (error) {
+        console.warn('InsForge saveMessage error:', error);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('InsForge saveMessage exception:', err);
+      return false;
+    }
+  }
+
+  /**
+   * Fetch recent chat messages for a class code
+   */
+  public async fetchMessages(classCode: string): Promise<ChatMessage[]> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { data, error } = await insforge.database
+        .from('classroom_messages')
+        .select()
+        .eq('class_code', cleanCode)
+        .order('timestamp', { ascending: true })
+        .limit(100);
+
+      if (error || !data) {
+        return [];
+      }
+
+      return data.map((row: any) => ({
+        id: row.id,
+        senderSessionId: row.sender_session_id,
+        senderName: row.sender_name,
+        senderRole: row.sender_role,
+        senderAvatar: row.sender_avatar || '#38bdf8',
+        text: row.text,
+        timestamp: Number(row.timestamp) || Date.now(),
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * Save teacher action in InsForge database
+   */
+  public async saveLiveAction(action: TeacherLiveAction, classCode: string): Promise<boolean> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { error } = await insforge.database
+        .from('classroom_live_actions')
+        .insert([{
+          class_code: cleanCode,
+          action_type: action.type,
+          payload: action,
+          teacher_name: action.teacherName,
+          timestamp: action.timestamp,
+        }]);
+
+      if (error) {
+        console.warn('InsForge saveLiveAction error:', error);
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Get latest teacher action from InsForge database
+   */
+  public async getLatestLiveAction(classCode: string): Promise<TeacherLiveAction | null> {
+    try {
+      const cleanCode = classCode.trim().toUpperCase();
+      const { data, error } = await insforge.database
+        .from('classroom_live_actions')
+        .select()
+        .eq('class_code', cleanCode)
+        .order('timestamp', { ascending: false })
+        .limit(1);
+
+      if (error || !data || data.length === 0) {
+        return null;
+      }
+
+      const row = data[0];
+      return row.payload as TeacherLiveAction;
     } catch {
       return null;
     }

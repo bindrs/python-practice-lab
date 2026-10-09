@@ -9,6 +9,9 @@ import { classroomSync } from './services/classroomSync';
 import { ClassroomLoginModal } from './components/ClassroomLoginModal';
 import { ClassroomHeaderBar } from './components/ClassroomHeaderBar';
 import { ClassroomVideoTiles } from './components/ClassroomVideoTiles';
+import { ClassroomConversationPanel } from './components/ClassroomConversationPanel';
+import { webRTCService } from './services/webRTCService';
+import { Eye, Radio, Sparkles } from 'lucide-react';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -178,14 +181,71 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<ClassroomUser | null>(() => {
     return classroomSync.getCurrentUser();
   });
+  const currentUserRef = useRef<ClassroomUser | null>(currentUser);
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
   const [peers, setPeers] = useState<ClassroomUser[]>([]);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState<boolean>(true);
   const [micActive, setMicActive] = useState<boolean>(true);
   const [isVideoTilesOpen, setIsVideoTilesOpen] = useState<boolean>(false);
+  const [isConversationOpen, setIsConversationOpen] = useState<boolean>(false);
+  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
+  const [speakingMap, setSpeakingMap] = useState<Record<string, boolean>>({});
+  const [latestTeacherActionNotice, setLatestTeacherActionNotice] = useState<string>('');
+
+  // Default to student View Screen Only mode!
+  const [studentViewOnly, setStudentViewOnly] = useState<boolean>(true);
+  const studentViewOnlyRef = useRef<boolean>(true);
+  useEffect(() => {
+    studentViewOnlyRef.current = studentViewOnly;
+  }, [studentViewOnly]);
+
   const [teacherHasNewCode, setTeacherHasNewCode] = useState<boolean>(false);
   const [, setLatestTeacherCode] = useState<string>('');
   const [autoSyncWithTeacher, setAutoSyncWithTeacher] = useState<boolean>(true);
+
+  // Synchronized trigger refs for teacher actions
+  const triggerRunRef = useRef<(src?: string) => void>(() => {});
+  const triggerStepRef = useRef<(src?: string) => void>(() => {});
+  const triggerResetRef = useRef<() => void>(() => {});
+  const triggerSelectExampleRef = useRef<(index: string) => void>(() => {});
+  const triggerSetCodeRef = useRef<(newCode: string) => void>(() => {});
+
+  // WebRTC Audio/Video & Voice Activity
+  useEffect(() => {
+    if (currentUser) {
+      webRTCService.init(currentUser, mediaStream);
+      const unsubRemote = webRTCService.onRemoteStreamsChange((map) => {
+        setRemoteStreams(new Map(map));
+      });
+      const unsubSpeaking = webRTCService.onSpeakingChange((map) => {
+        setSpeakingMap({ ...map });
+      });
+      return () => {
+        unsubRemote();
+        unsubSpeaking();
+      };
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (mediaStream) {
+      webRTCService.updateLocalStream(mediaStream);
+    }
+  }, [mediaStream]);
+
+  useEffect(() => {
+    if (currentUser && peers.length > 0) {
+      peers.forEach((peer) => {
+        if (peer.sessionId !== currentUser.sessionId) {
+          webRTCService.connectToPeer(peer.sessionId);
+        }
+      });
+    }
+  }, [peers, currentUser]);
 
   // Sync peer directory and incoming teacher broadcasts
   useEffect(() => {
@@ -198,21 +258,75 @@ export default function App() {
         setLatestTeacherCode(msg.code);
         const current = classroomSync.getCurrentUser();
         if (current && current.role === 'student') {
-          if (autoSyncWithTeacher) {
-            const codeEl = document.getElementById('code') as HTMLTextAreaElement;
-            if (codeEl) {
-              codeEl.value = msg.code;
-              codeEl.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-            setTeacherHasNewCode(false);
-            const sayEl = document.getElementById('say');
-            if (sayEl) {
-              sayEl.innerHTML = `📡 <b>Teacher Live Broadcast Received:</b> Code from <b>${msg.sender.username}</b> loaded live! Feel free to edit, modify, and test changes in your window freely.`;
-            }
-          } else {
-            setTeacherHasNewCode(true);
+          triggerSetCodeRef.current(msg.code);
+          setTeacherHasNewCode(false);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `📡 <b>Teacher Live Screen Synced:</b> Code from <b>${msg.sender.username}</b> loaded live!`;
           }
         }
+      }
+    });
+
+    // Listen to real-time teacher actions (Run, Step, Reset, Switch Tab, Select Example)
+    const unsubActions = classroomSync.onTeacherAction((action) => {
+      const current = classroomSync.getCurrentUser();
+      if (current && current.role === 'student') {
+        const actionLabels: Record<string, string> = {
+          run: 'Ran Code ▶',
+          step: 'Stepped Line ⏭',
+          reset: 'Reset Code ↺',
+          select_example: 'Selected Example 📚',
+          switch_tab: `Switched Tab (${action.tab}) 📑`,
+          clear_output: 'Cleared Output ⌫',
+        };
+        setLatestTeacherActionNotice(`${action.teacherName}: ${actionLabels[action.type] || action.type}`);
+        setTimeout(() => setLatestTeacherActionNotice(''), 3500);
+
+        if (action.type === 'run') {
+          if (action.code !== undefined) {
+            triggerSetCodeRef.current(action.code);
+          }
+          triggerRunRef.current(action.code);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> ran the code! Executing live on your screen.`;
+          }
+        } else if (action.type === 'step') {
+          if (action.code !== undefined) {
+            triggerSetCodeRef.current(action.code);
+          }
+          triggerStepRef.current(action.code);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> stepped forward! Visualizer state mirrored.`;
+          }
+        } else if (action.type === 'reset') {
+          triggerResetRef.current();
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> reset execution.`;
+          }
+        } else if (action.type === 'select_example' && action.exampleIndex !== undefined) {
+          triggerSelectExampleRef.current(action.exampleIndex);
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> switched to curriculum example!`;
+          }
+        } else if (action.type === 'switch_tab' && action.tab) {
+          setActiveTab(action.tab);
+        } else if (action.type === 'clear_output') {
+          const screenEl = document.getElementById('screen');
+          if (screenEl) screenEl.innerHTML = '';
+        }
+      }
+    });
+
+    // Real-time teacher code typing broadcast
+    const unsubCode = classroomSync.onCodeChange((code) => {
+      const current = classroomSync.getCurrentUser();
+      if (current && current.role === 'student') {
+        triggerSetCodeRef.current(code);
       }
     });
 
@@ -220,14 +334,16 @@ export default function App() {
     const latest = classroomSync.getLatestTeacherCode(currentUser?.classCode);
     if (latest && currentUser && currentUser.role === 'student') {
       setLatestTeacherCode(latest.code);
-      setTeacherHasNewCode(true);
+      triggerSetCodeRef.current(latest.code);
     }
 
     return () => {
       unsubPeers();
       unsubMsg();
+      unsubActions();
+      unsubCode();
     };
-  }, [autoSyncWithTeacher, currentUser]);
+  }, [currentUser]);
 
   const handleTeacherBroadcast = () => {
     const codeEl = document.getElementById('code') as HTMLTextAreaElement;
@@ -2358,13 +2474,28 @@ export default function App() {
         exSelect.append(o);
       });
       exSelect.onchange = () => {
+        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
+          say_('👁️ <b>View Only Mode:</b> Teacher controls curriculum example selection.');
+          return;
+        }
         const i = exSelect.value;
         if (i === '') return;
         code.value = U[+i][2];
         const highlightEl = $('#code-highlight');
         if (highlightEl) highlightEl.innerHTML = highlightPython(code.value);
         reset();
+        drawGut();
         say_('**Goal:** ' + U[+i][1]);
+
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'select_example',
+            exampleIndex: i,
+            code: code.value,
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
       };
     }
 
@@ -2505,9 +2636,71 @@ export default function App() {
       }
     }
 
+    // Expose trigger refs for remote student screen mirroring
+    triggerRunRef.current = (src?: string) => {
+      const codeToRun = src !== undefined ? src : code.value;
+      if (code.value !== codeToRun) {
+        code.value = codeToRun;
+        updateHighlight();
+        drawGut();
+      }
+      start('run', codeToRun);
+    };
+
+    triggerStepRef.current = (src?: string) => {
+      if (src !== undefined && code.value !== src) {
+        code.value = src;
+        updateHighlight();
+        drawGut();
+      }
+      if (running) {
+        mode = 'step';
+        if (wait) wait();
+      } else {
+        start('step', code.value);
+      }
+    };
+
+    triggerResetRef.current = () => {
+      reset();
+    };
+
+    triggerSelectExampleRef.current = (index: string) => {
+      if (exSelect) {
+        exSelect.value = index;
+        if (index !== '' && U[+index]) {
+          code.value = U[+index][2];
+          updateHighlight();
+          reset();
+          drawGut();
+          say_('**Goal:** ' + U[+index][1]);
+        }
+      }
+    };
+
+    triggerSetCodeRef.current = (newCode: string) => {
+      if (code.value !== newCode) {
+        code.value = newCode;
+        updateHighlight();
+        drawGut();
+      }
+    };
+
     const runBtn = $('#run');
     if (runBtn) {
       runBtn.onclick = () => {
+        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
+          say_('👁️ <b>View Screen Only:</b> You are watching the Teacher\'s screen live. Teacher controls execution.');
+          return;
+        }
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'run',
+            code: code.value,
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
         if (running) {
           mode = 'run';
           if (wait) wait();
@@ -2545,12 +2738,31 @@ export default function App() {
       clrBtn.onclick = () => {
         screen.innerHTML = '';
         curSpan = null;
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'clear_output',
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
       };
     }
 
     const stepBtn = $('#step');
     if (stepBtn) {
       stepBtn.onclick = () => {
+        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
+          say_('👁️ <b>View Screen Only:</b> Stepping is controlled by the teacher.');
+          return;
+        }
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'step',
+            code: code.value,
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
         if (running) {
           mode = 'step';
           if (wait) wait();
@@ -2562,7 +2774,34 @@ export default function App() {
 
     const resetBtn = $('#reset');
     if (resetBtn) {
-      resetBtn.onclick = reset;
+      resetBtn.onclick = () => {
+        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
+          say_('👁️ <b>View Screen Only:</b> Controlled by teacher.');
+          return;
+        }
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'reset',
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
+        reset();
+      };
+    }
+
+    const spdInput = $('#spd') as HTMLInputElement;
+    if (spdInput) {
+      spdInput.oninput = () => {
+        if (currentUserRef.current?.role === 'teacher') {
+          classroomSync.broadcastTeacherAction({
+            type: 'speed_change',
+            speed: +spdInput.value,
+            teacherName: currentUserRef.current.username,
+            timestamp: Date.now(),
+          });
+        }
+      };
     }
 
     const VOID_TAGS = new Set([
@@ -2580,6 +2819,7 @@ export default function App() {
     const handleInput = () => {
       updateHighlight();
       reset();
+      drawGut();
       try {
         const sid = sessionStorage.getItem('classroom_window_session_id');
         if (sid) {
@@ -2587,6 +2827,10 @@ export default function App() {
         }
       } catch {
         // ignore
+      }
+
+      if (currentUserRef.current?.role === 'teacher') {
+        classroomSync.broadcastCodeChange(code.value);
       }
     };
 
@@ -2822,6 +3066,20 @@ export default function App() {
     };
   }, []);
 
+  const handleTabClick = (tab: 'terminal' | 'trace' | 'turtle') => {
+    setActiveTab(tab);
+    if (currentUser?.role === 'teacher') {
+      classroomSync.broadcastTeacherAction({
+        type: 'switch_tab',
+        tab,
+        teacherName: currentUser.username,
+        timestamp: Date.now(),
+      });
+    }
+  };
+
+  const isStudent = currentUser?.role === 'student';
+
   return (
     <>
       {!currentUser && (
@@ -2845,19 +3103,53 @@ export default function App() {
             onLogout={handleLogout}
             onToggleVideoTiles={() => setIsVideoTilesOpen((prev) => !prev)}
             isVideoTilesOpen={isVideoTilesOpen}
+            isConversationOpen={isConversationOpen}
+            onToggleConversation={() => setIsConversationOpen((prev) => !prev)}
+            latestTeacherActionNotice={latestTeacherActionNotice}
           />
         )}
+
+        {/* Student View Screen Only Banner */}
+        {isStudent && studentViewOnly && (
+          <div className="bg-gradient-to-r from-sky-950/95 via-sky-900/90 to-indigo-950/95 border-b border-sky-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-sky-200 shadow-sm z-20">
+            <div className="flex items-center gap-2 overflow-hidden">
+              <div className="w-5 h-5 rounded-md bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-300 flex-shrink-0">
+                <Eye className="w-3.5 h-3.5 animate-pulse" />
+              </div>
+              <div className="flex items-center gap-1.5 truncate">
+                <span className="font-bold text-sky-100">Student View Screen Only</span>
+                <span className="hidden sm:inline text-sky-300/80">· Live mirroring Teacher's screen & actions in real-time</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {latestTeacherActionNotice && (
+                <span className="hidden md:flex items-center gap-1 text-[11px] font-mono text-amber-300 bg-amber-500/20 px-2 py-0.5 rounded-md border border-amber-500/30">
+                  <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span>{latestTeacherActionNotice}</span>
+                </span>
+              )}
+              <span className="flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Screen Synchronized
+              </span>
+            </div>
+          </div>
+        )}
+
       {/* Top Header & Actions */}
       <div className="tb">
         <b>Python Studio</b>
-        <select id="ex" aria-label="Examples">
+        <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly}>
           <option value="">Curriculum Examples</option>
         </select>
-        <button className="go" id="run">
-          Run
+        <button className={`go ${isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''}`} id="run" title={isStudent && studentViewOnly ? 'View Screen Only: Run is controlled by teacher' : 'Run code'}>
+          Run {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
         </button>
-        <button id="step">Step</button>
-        <button id="reset">Reset</button>
+        <button id="step" className={isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''} title={isStudent && studentViewOnly ? 'View Screen Only: Step is controlled by teacher' : 'Step forward'}>
+          Step {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
+        </button>
+        <button id="reset" className={isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''} title={isStudent && studentViewOnly ? 'View Screen Only: Reset is controlled by teacher' : 'Reset execution'}>
+          Reset {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
+        </button>
         <button
           type="button"
           className={`tb-toggle-btn ${hideScrollbars ? 'active' : ''}`}
@@ -3035,7 +3327,15 @@ export default function App() {
             <div className="mark" id="mark" />
             <div className="gut" id="gut" />
             <pre id="code-highlight" aria-hidden="true"></pre>
-            <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
+            <textarea
+              id="code"
+              spellCheck={false}
+              wrap="off"
+              aria-label="Python code editor"
+              readOnly={isStudent && studentViewOnly}
+              className={isStudent && studentViewOnly ? 'view-only-textarea' : ''}
+              title={isStudent && studentViewOnly ? "View Screen Only: Live following Teacher" : "Python code editor"}
+            />
           </div>
         </aside>
 
@@ -3116,19 +3416,19 @@ export default function App() {
           <button
             id="tab-terminal-btn"
             className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
-            onClick={() => setActiveTab('terminal')}
+            onClick={() => handleTabClick('terminal')}
           >
             Terminal Output
           </button>
           <button
             className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
-            onClick={() => setActiveTab('trace')}
+            onClick={() => handleTabClick('trace')}
           >
             Trace Table
           </button>
           <button
             className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
-            onClick={() => setActiveTab('turtle')}
+            onClick={() => handleTabClick('turtle')}
           >
             Turtle Canvas
           </button>
@@ -3172,11 +3472,28 @@ export default function App() {
           currentUser={currentUser}
           peers={peers}
           mediaStream={mediaStream}
+          remoteStreams={remoteStreams}
+          cameraActive={cameraActive}
+          micActive={micActive}
+          speakingMap={speakingMap}
+          onToggleCamera={handleToggleCamera}
+          onToggleMic={handleToggleMic}
+          onClose={() => setIsVideoTilesOpen(false)}
+        />
+      )}
+
+      {/* Real-time Classroom Conversation & Audio Call Drawer */}
+      {currentUser && (
+        <ClassroomConversationPanel
+          currentUser={currentUser}
+          peers={peers}
           cameraActive={cameraActive}
           micActive={micActive}
           onToggleCamera={handleToggleCamera}
           onToggleMic={handleToggleMic}
-          onClose={() => setIsVideoTilesOpen(false)}
+          isOpen={isConversationOpen}
+          onClose={() => setIsConversationOpen(false)}
+          speakingMap={speakingMap}
         />
       )}
     </div>
