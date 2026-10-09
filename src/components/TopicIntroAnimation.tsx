@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { SubTopic, CurriculumModule } from '../data/curriculumData';
+import { Language, UI_STRINGS, TOPIC_URDULISH, MODULE_URDULISH } from '../data/translations';
 
 interface TopicIntroAnimationProps {
   topic: SubTopic;
   module: CurriculumModule;
   theme?: 'light' | 'dark';
+  lang?: Language;
   onContinue: () => void;
   onOpenInStudio?: (code: string) => void;
 }
@@ -12,13 +14,26 @@ interface TopicIntroAnimationProps {
 export default function TopicIntroAnimation({
   topic,
   module,
-  theme = 'dark',
+  theme = 'light',
+  lang = 'en',
   onContinue,
   onOpenInStudio,
 }: TopicIntroAnimationProps) {
   const [stage, setStage] = useState<number>(0);
   const [pulse, setPulse] = useState(true);
   const isLight = theme === 'light';
+  const t = UI_STRINGS[lang] || UI_STRINGS.en;
+
+  const isUrdulish = lang === 'urdulish' || (lang as string) === 'hinglish';
+  const urdulishTopic = isUrdulish ? TOPIC_URDULISH[topic.id] : undefined;
+  const urdulishModule = isUrdulish ? MODULE_URDULISH[module.id] : undefined;
+
+  const displayTitle = urdulishTopic?.title || topic.title;
+  const displayModuleTitle = urdulishModule?.title || module.title;
+  const displayHeadline = urdulishTopic?.headline || topic.intro.headline;
+  const displaySummary = urdulishTopic?.summary || topic.intro.summary;
+  const displayAnalogy = urdulishTopic?.analogy || topic.intro.analogy;
+  const displayTakeaways = urdulishTopic?.keyTakeaways || topic.intro.keyTakeaways;
 
   useEffect(() => {
     setStage(0);
@@ -81,7 +96,7 @@ export default function TopicIntroAnimation({
                 : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
             }`}
           >
-            Module {module.moduleNumber}: {module.title}
+            Module {module.moduleNumber}: {displayModuleTitle}
           </span>
           <span
             className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
@@ -98,9 +113,9 @@ export default function TopicIntroAnimation({
             isLight ? 'text-slate-500' : 'text-slate-400'
           }`}
         >
-          <span>Est. {topic.durationMinutes} mins</span>
-          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>/</span>
-          <span>Interactive Guide</span>
+          <span>{t.estMinutes} {topic.durationMinutes}</span>
+          <span className={isLight ? 'text-slate-300' : 'text-slate-600'}>|</span>
+          <span>{isUrdulish ? 'Interactive Rahnumai' : 'Interactive Guide'}</span>
         </div>
       </div>
 
@@ -124,7 +139,7 @@ export default function TopicIntroAnimation({
                 isLight ? 'text-slate-500' : 'text-slate-400'
               }`}
             >
-              SECTION
+              {t.sectionLabel}
             </span>
             <span
               className={`text-xl font-extrabold ${
@@ -147,14 +162,14 @@ export default function TopicIntroAnimation({
                 isLight ? 'text-slate-900' : 'text-slate-100'
               }`}
             >
-              {topic.topicNumber} {topic.title}
+              {topic.topicNumber} {displayTitle}
             </h1>
             <p
               className={`text-sm sm:text-base font-medium mt-1 ${
                 isLight ? 'text-slate-600' : 'text-slate-300'
               }`}
             >
-              {topic.intro.headline}
+              {displayHeadline}
             </p>
           </div>
         </div>
@@ -170,7 +185,7 @@ export default function TopicIntroAnimation({
               isLight ? 'text-slate-800' : 'text-slate-200'
             }`}
           >
-            {topic.intro.summary}
+            {displaySummary}
           </p>
 
           <div
@@ -185,14 +200,14 @@ export default function TopicIntroAnimation({
                 isLight ? 'text-amber-800' : 'text-amber-400'
               }`}
             >
-              Mental Metaphor:
+              {t.mentalMetaphor}
             </span>
             <p
               className={`text-sm italic ${
                 isLight ? 'text-slate-700' : 'text-slate-300'
               }`}
             >
-              "{topic.intro.analogy}"
+              "{displayAnalogy}"
             </p>
           </div>
         </div>
@@ -208,10 +223,10 @@ export default function TopicIntroAnimation({
               isLight ? 'text-emerald-700' : 'text-emerald-400'
             }`}
           >
-            Key Objectives to Master:
+            {t.keyObjectives}
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {topic.intro.keyTakeaways.map((takeaway, i) => (
+            {displayTakeaways.map((takeaway, i) => (
               <div
                 key={i}
                 className={`p-3 rounded-lg border flex items-start gap-2.5 transition-colors ${
@@ -251,7 +266,7 @@ export default function TopicIntroAnimation({
             isLight ? 'text-slate-500' : 'text-slate-400'
           }`}
         >
-          <span>Curriculum Standard KP BT&CE DIT</span>
+          <span>{t.standardLabel}</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -263,9 +278,9 @@ export default function TopicIntroAnimation({
                   ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
                   : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
               }`}
-              title="Directly launch the topic example into the visualizer editor"
+              title="Launch topic code into the code visualizer"
             >
-              Load in Studio
+              {t.loadInStudio}
             </button>
           )}
 
@@ -277,7 +292,7 @@ export default function TopicIntroAnimation({
                 : 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-slate-950 shadow-emerald-950/60'
             }`}
           >
-            Enter Lesson Guide
+            {t.enterLessonGuide}
           </button>
         </div>
       </div>

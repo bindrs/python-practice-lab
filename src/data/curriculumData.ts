@@ -203,7 +203,7 @@ export const CURRICULUM_MODULES: CurriculumModule[] = [
           keyPoints: [
             { title: 'Compilation (C, C++, Rust)', explanation: 'Entire code checked upfront. Very fast execution speed, but requires a re-compile step every time code changes.' },
             { title: 'Interpretation (Python, Ruby, JS)', explanation: 'Code executes line-by-line immediately. Fantastic for testing, interactive debugging, and educational visualizers.' },
-            { title: 'Python Hybrid Model', explanation: 'Source (.py) ➔ Bytecode (.pyc) ➔ PVM (Python Virtual Machine Interpreter).' }
+            { title: 'Python Hybrid Model', explanation: 'Source (.py) -> Bytecode (.pyc) -> PVM (Python Virtual Machine Interpreter).' }
           ],
           codeExample: '# 1.4 The Interpreter in action:\nprint("Line 1: Interpreted & executed")\nprint("Line 2: Active execution continues")\n# An interpreter executes everything up to any error\nprint("Line 3: Finished without errors")',
           codeExplanation: 'Each statement is evaluated in sequence by the visualizer engine just like standard CPython.',

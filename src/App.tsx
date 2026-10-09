@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { CURRICULUM_MODULES } from './data/curriculumData';
 import CurriculumPage from './components/CurriculumPage';
+import { Language, UI_STRINGS, MODULE_URDULISH, TOPIC_URDULISH } from './data/translations';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -13,10 +14,22 @@ export default function App() {
     return (localStorage.getItem('py_theme') as 'light' | 'dark') || 'light';
   });
 
+  const [lang, setLang] = useState<Language>(() => {
+    const saved = localStorage.getItem('py_lang');
+    if (saved === 'urdulish' || saved === 'hinglish') return 'urdulish';
+    return 'en';
+  });
+
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('py_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem('py_lang', lang);
+  }, [lang]);
+
+  const t = UI_STRINGS[lang] || UI_STRINGS.en;
 
   const [viewMode, setViewMode] = useState<'curriculum' | 'studio'>('curriculum');
   const loadCodeRef = useRef<(codeStr: string, autoRun?: boolean) => void>(() => {});
@@ -26,6 +39,33 @@ export default function App() {
   const [memHistoryOn, setMemHistoryOn] = useState(false);
   const memHistoryOnRef = useRef(false);
   const renderVesselsRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    const exSelect = containerRef.current.querySelector<HTMLSelectElement>('#ex');
+    if (!exSelect) return;
+    const curVal = exSelect.value;
+    exSelect.innerHTML = `<option value="">${t.chooseTopic}</option>`;
+    CURRICULUM_MODULES.forEach((mod) => {
+      const og = document.createElement('optgroup');
+      const isUrdulish = lang === 'urdulish';
+      const modTitle = isUrdulish && MODULE_URDULISH[mod.id]
+        ? MODULE_URDULISH[mod.id].title
+        : mod.title;
+      og.label = `Module ${mod.moduleNumber}: ${modTitle}`;
+      mod.topics.forEach((top) => {
+        const o = document.createElement('option');
+        o.value = top.id;
+        const topTitle = isUrdulish && TOPIC_URDULISH[top.id]?.title
+          ? TOPIC_URDULISH[top.id].title
+          : top.title;
+        o.textContent = `${top.topicNumber} ${topTitle}`;
+        og.append(o);
+      });
+      exSelect.append(og);
+    });
+    if (curVal) exSelect.value = curVal;
+  }, [lang, t.chooseTopic]);
 
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
@@ -1010,7 +1050,7 @@ export default function App() {
               substCond: subst,
               phase: 'resolved',
               outcome: v,
-              evalStr: subst ? `${subst} ➔ ${v ? 'True' : 'False'}` : `${rawCond} ➔ ${v ? 'True' : 'False'}`,
+              evalStr: subst ? `${subst} -> ${v ? 'True' : 'False'}` : `${rawCond} -> ${v ? 'True' : 'False'}`,
             });
             say_(
               `**Decision Gate (${branchType.toUpperCase()}):** Shart <code>${esc(rawCond)}</code>${
@@ -1031,7 +1071,7 @@ export default function App() {
               substCond: 'Prior checks evaluated to False',
               phase: 'resolved',
               outcome: true,
-              evalStr: 'Sabhi shartein False thi ➔ Default Path',
+              evalStr: 'Sabhi shartein False thi -> Default Path',
             });
             say_('**Else Corridor:** Sabhi shartein False thi — default fallback path execute ho raha hai.');
             await sleep(450);
@@ -1078,7 +1118,7 @@ export default function App() {
               substCond: subst,
               phase: 'resolved',
               outcome: v,
-              evalStr: `Round ${n}: ${subst || rawCond} ➔ ${v ? 'True' : 'False'}`,
+              evalStr: `Round ${n}: ${subst || rawCond} -> ${v ? 'True' : 'False'}`,
             });
             say_(
               `**While Loop Gate (Round #${n}):** Shart <code>${esc(rawCond)}</code>${
@@ -1223,7 +1263,7 @@ export default function App() {
                     ? `<span class="gate-eval-subst">[ ${esc(data.substCond)} ]</span>`
                     : ''
                 }
-                <span class="gate-eval-arrow">➔</span>
+                <span class="gate-eval-arrow">-&gt;</span>
                 ${
                   isTesting
                     ? `<span class="gate-eval-result res-evaluating">EVALUATING</span>`
@@ -1343,7 +1383,7 @@ export default function App() {
               <span class="fusion-target">${esc(data.target)}</span>
               <span class="fusion-op">${esc(data.op)}</span>
               <span class="fusion-delta">${esc(data.delta)}</span>
-              <span class="fusion-arrow">➔</span>
+              <span class="fusion-arrow">-&gt;</span>
               <span class="fusion-result">${esc(data.newVal)}</span>
             </div>
           </div>
@@ -1472,7 +1512,7 @@ export default function App() {
                   </div>
                   <div class="str-meta-footer">
                     <span class="str-len-tag">len: ${chars.length}</span>
-                    <span class="str-syntax-tag">${esc(k)}[0] ➔ '${esc(chars[0])}'</span>
+                    <span class="str-syntax-tag">${esc(k)}[0] -&gt; '${esc(chars[0])}'</span>
                   </div>
                 </div>
               `;
@@ -1534,7 +1574,7 @@ export default function App() {
                   const histList = (memHistoryOnRef.current && varHist[k]) ? varHist[k] : [];
                   const inlineHistoryHtml = histList.length > 0 ? `
                     <div style="display:flex; align-items:center; gap:4px; font-size:11px; opacity:0.35; margin-bottom:4px; flex-wrap:wrap; font-family:'JetBrains Mono',monospace;">
-                      ${histList.map(hx => `<span>${esc(rep(hx))}</span>`).join(' <span>➔</span> ')} <span>➔</span>
+                      ${histList.map(hx => `<span>${esc(rep(hx))}</span>`).join(' <span>-&gt;</span> ')} <span>-&gt;</span>
                     </div>
                   ` : '';
                   return inlineHistoryHtml + `<div style="font-weight:700; font-size:1.15em; color:var(--text);">${valDisplay}</div>`;
@@ -2621,7 +2661,7 @@ export default function App() {
                   : 'text-slate-300 hover:text-white bg-transparent border-0'
               }`}
             >
-              Curriculum & Guide (9 Modules)
+              {t.curriculumBtn}
             </button>
             <button
               type="button"
@@ -2634,7 +2674,7 @@ export default function App() {
                   : 'text-slate-300 hover:text-white bg-transparent border-0'
               }`}
             >
-              Python Studio (Visualizer)
+              {t.studioBtn}
             </button>
           </div>
         </div>
@@ -2643,18 +2683,18 @@ export default function App() {
           {viewMode === 'studio' ? (
             <>
               <select id="ex" aria-label="Curriculum Topics" style={{ maxWidth: '240px' }}>
-                <option value="">Curriculum Topics...</option>
+                <option value="">{t.chooseTopic}</option>
               </select>
               <button className="go" id="run">
-                Run
+                {t.runBtn}
               </button>
-              <button id="step">Step</button>
-              <button id="reset">Reset</button>
+              <button id="step">{t.stepBtn}</button>
+              <button id="reset">{t.resetBtn}</button>
               <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                <input type="checkbox" id="pr" /> Predict
+                <input type="checkbox" id="pr" /> {t.predictLabel}
               </label>
               <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
-                Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
+                {t.speedLabel} <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
               </label>
             </>
           ) : (
@@ -2663,9 +2703,46 @@ export default function App() {
               onClick={() => setViewMode('studio')}
               className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition shadow"
             >
-              Open Code Studio
+              {t.openStudioBtn}
             </button>
           )}
+
+          {/* Language Switcher */}
+          <div
+            className={`flex items-center p-0.5 rounded-full border text-xs font-bold ${
+              theme === 'light'
+                ? 'bg-slate-100 border-slate-300'
+                : 'bg-slate-800 border-slate-700'
+            }`}
+            title="Language (Zaban): English or Urdulish (Roman Urdu)"
+          >
+            <button
+              type="button"
+              onClick={() => setLang('en')}
+              className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${
+                lang === 'en'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  : theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
+                  : 'text-slate-300 hover:text-white bg-transparent border-0'
+              }`}
+            >
+              EN
+            </button>
+            <button
+              type="button"
+              onClick={() => setLang('urdulish')}
+              className={`px-2.5 py-1 rounded-full text-xs font-bold transition ${
+                lang === 'urdulish'
+                  ? 'bg-emerald-500 text-slate-950 shadow-sm'
+                  : theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
+                  : 'text-slate-300 hover:text-white bg-transparent border-0'
+              }`}
+            >
+              Urdulish
+            </button>
+          </div>
 
           {/* Theme Toggle Button */}
           <button
@@ -2678,7 +2755,7 @@ export default function App() {
             }`}
             title="Toggle Light or Dark Mode"
           >
-            {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+            {theme === 'light' ? t.darkMode : t.lightMode}
           </button>
         </div>
       </header>
@@ -2692,6 +2769,7 @@ export default function App() {
         >
           <CurriculumPage
             theme={theme}
+            lang={lang}
             onLoadCodeIntoStudio={(code) => loadCodeRef.current(code, true)}
             onCloseToStudio={() => setViewMode('studio')}
           />
@@ -2703,16 +2781,20 @@ export default function App() {
           className="app"
         >
           {/* Sub Toolbar when in Studio */}
-          <div className="tb" style={{ background: '#111a2c', padding: '6px 16px', fontSize: '13px' }}>
-            <span className="text-xs text-slate-400">Workspace:</span>
-            <span className="text-xs font-semibold text-emerald-400">Interactive Visualizer</span>
-            <span className="text-slate-600">|</span>
+          <div className="tb" style={{ background: theme === 'light' ? '#f1f5f9' : '#111a2c', padding: '6px 16px', fontSize: '13px', borderBottom: theme === 'light' ? '1px solid #e2e8f0' : '1px solid #1e293b' }}>
+            <span className={`text-xs ${theme === 'light' ? 'text-slate-500' : 'text-slate-400'}`}>Workspace:</span>
+            <span className="text-xs font-semibold text-emerald-500">{t.workspaceVisualizer}</span>
+            <span className={theme === 'light' ? 'text-slate-300' : 'text-slate-600'}>|</span>
             <button
               type="button"
               onClick={() => setViewMode('curriculum')}
-              className="text-xs text-slate-300 hover:text-white bg-slate-800 border-slate-700 px-2.5 py-0.5 rounded-md"
+              className={`text-xs px-2.5 py-0.5 rounded-md border ${
+                theme === 'light'
+                  ? 'text-slate-700 hover:text-slate-900 bg-white border-slate-300'
+                  : 'text-slate-300 hover:text-white bg-slate-800 border-slate-700'
+              }`}
             >
-              Browse Curriculum Lessons
+              {t.browseLessons}
             </button>
           </div>
 
@@ -2749,7 +2831,7 @@ export default function App() {
                 {/* Concept Stage (Dynamic Metaphor Action) */}
                 <div className="meta-stage">
                   <div className="stage-title">
-                    <span>Active Concept Animation</span>
+                    <span>{t.activeConceptAnimation}</span>
                     <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
                       Decision Gates · Orbit Loops · Fusion Streams
                     </span>
@@ -2761,9 +2843,9 @@ export default function App() {
                 <div className="meta-vessels-deck">
                   <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
-                      <span>Live Memory Entries</span>
+                      <span>{t.liveMemoryEntries}</span>
                       <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
-                        Target Mention ➔ Value Drop Animation
+                        Target Mention {'->'} Value Drop Animation
                       </span>
                     </div>
                     <button
@@ -2787,7 +2869,7 @@ export default function App() {
             </main>
           </div>
 
-          {/* Output Deck */}
+          {/* Output Deck — Always Stays Black */}
           <div className="term-deck">
             <div className="deck-tabs">
               <button
@@ -2795,22 +2877,22 @@ export default function App() {
                 className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
                 onClick={() => setActiveTab('terminal')}
               >
-                Terminal Output
+                {t.terminalTab}
               </button>
               <button
                 className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
                 onClick={() => setActiveTab('trace')}
               >
-                Trace Table
+                {t.traceTab}
               </button>
               <button
                 className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
                 onClick={() => setActiveTab('turtle')}
               >
-                Turtle Canvas
+                {t.turtleTab}
               </button>
               <button id="clr" style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
-                Clear Output
+                {t.clearOutput}
               </button>
             </div>
 
@@ -2829,16 +2911,16 @@ export default function App() {
           {/* Predict Modal */}
           <div className="modal" id="pred">
             <div className="mbox">
-              <h3>Predict Before Running</h3>
+              <h3>{t.predictTitle}</h3>
               <p style={{ color: 'var(--mute)', fontSize: '14px', margin: '4px 0 12px' }}>
-                Is code ka output kya aayega? Neeche type karo, phir run karke compare karo.
+                {t.predictPrompt}
               </p>
               <textarea id="pt" rows={4} aria-label="Prediction input" />
               <div className="mb">
                 <button className="go" id="pgo">
-                  Verify Prediction
+                  {t.verifyPrediction}
                 </button>
-                <button id="pno">Cancel</button>
+                <button id="pno">{t.cancelBtn}</button>
               </div>
             </div>
           </div>

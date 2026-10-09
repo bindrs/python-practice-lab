@@ -5,17 +5,25 @@ import {
   SubTopic,
 } from '../data/curriculumData';
 import TopicIntroAnimation from './TopicIntroAnimation';
+import {
+  Language,
+  UI_STRINGS,
+  MODULE_URDULISH,
+  TOPIC_URDULISH,
+} from '../data/translations';
 
 interface CurriculumPageProps {
   onLoadCodeIntoStudio: (code: string) => void;
   onCloseToStudio?: () => void;
   theme?: 'light' | 'dark';
+  lang?: Language;
 }
 
 export default function CurriculumPage({
   onLoadCodeIntoStudio,
   onCloseToStudio,
-  theme = 'dark',
+  theme = 'light',
+  lang = 'en',
 }: CurriculumPageProps) {
   const [selectedModuleId, setSelectedModuleId] = useState<string>('m1');
   const [selectedTopicId, setSelectedTopicId] = useState<string>('1.1');
@@ -28,6 +36,7 @@ export default function CurriculumPage({
   const [showCodeSolution, setShowCodeSolution] = useState<boolean>(false);
 
   const isLight = theme === 'light';
+  const t = UI_STRINGS[lang] || UI_STRINGS.en;
 
   // Active module & topic
   const activeModule = useMemo(() => {
@@ -39,7 +48,7 @@ export default function CurriculumPage({
 
   const activeTopic = useMemo(() => {
     for (const m of CURRICULUM_MODULES) {
-      const found = m.topics.find((t) => t.id === selectedTopicId);
+      const found = m.topics.find((top) => top.id === selectedTopicId);
       if (found) return found;
     }
     return activeModule.topics[0];
@@ -62,12 +71,16 @@ export default function CurriculumPage({
     const q = searchQuery.toLowerCase();
     return CURRICULUM_MODULES.map((m) => ({
       ...m,
-      topics: m.topics.filter(
-        (t) =>
-          t.title.toLowerCase().includes(q) ||
-          t.topicNumber.includes(q) ||
-          t.guide.overview.toLowerCase().includes(q)
-      ),
+      topics: m.topics.filter((top) => {
+        const ht = TOPIC_URDULISH[top.id];
+        return (
+          top.title.toLowerCase().includes(q) ||
+          top.topicNumber.includes(q) ||
+          top.guide.overview.toLowerCase().includes(q) ||
+          (ht?.title && ht.title.toLowerCase().includes(q)) ||
+          (ht?.overview && ht.overview.toLowerCase().includes(q))
+        );
+      }),
     })).filter((m) => m.topics.length > 0);
   }, [searchQuery]);
 
@@ -86,8 +99,8 @@ export default function CurriculumPage({
   const goToNextTopic = () => {
     const allTopicsWithModule: Array<{ mod: CurriculumModule; top: SubTopic }> = [];
     CURRICULUM_MODULES.forEach((m) => {
-      m.topics.forEach((t) => {
-        allTopicsWithModule.push({ mod: m, top: t });
+      m.topics.forEach((top) => {
+        allTopicsWithModule.push({ mod: m, top });
       });
     });
 
@@ -105,8 +118,8 @@ export default function CurriculumPage({
   const goToPrevTopic = () => {
     const allTopicsWithModule: Array<{ mod: CurriculumModule; top: SubTopic }> = [];
     CURRICULUM_MODULES.forEach((m) => {
-      m.topics.forEach((t) => {
-        allTopicsWithModule.push({ mod: m, top: t });
+      m.topics.forEach((top) => {
+        allTopicsWithModule.push({ mod: m, top });
       });
     });
 
@@ -133,6 +146,20 @@ export default function CurriculumPage({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
+  // Localized active module & topic data
+  const isUrdulish = lang === 'urdulish' || (lang as string) === 'hinglish';
+  const currentUrdulishTopic = isUrdulish ? TOPIC_URDULISH[activeTopic.id] : undefined;
+  const currentUrdulishModule = isUrdulish ? MODULE_URDULISH[activeModule.id] : undefined;
+
+  const displayModuleTitle = currentUrdulishModule?.title || activeModule.title;
+  const displayTopicTitle = currentUrdulishTopic?.title || activeTopic.title;
+  const displayTopicOverview = currentUrdulishTopic?.overview || activeTopic.guide.overview;
+  const displayCodeExplanation = currentUrdulishTopic?.codeExplanation || activeTopic.guide.codeExplanation;
+  const displayCommonMistakes = currentUrdulishTopic?.commonMistakes || activeTopic.guide.commonMistakes;
+  const displayExerciseQuestion = currentUrdulishTopic?.question || activeTopic.exercise.question;
+  const displayExerciseOptions = currentUrdulishTopic?.options || activeTopic.exercise.options;
+  const displayExerciseExplanation = currentUrdulishTopic?.explanation || activeTopic.exercise.explanation;
+
   return (
     <div
       className={`flex flex-col lg:flex-row h-full min-h-0 font-sans transition-colors duration-200 ${
@@ -158,10 +185,10 @@ export default function CurriculumPage({
                   isLight ? 'text-slate-900' : 'text-white'
                 }`}
               >
-                Python Curriculum
+                {t.curriculumTitle}
               </h2>
               <p className={`text-[11px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-                9 Modules · Complete Interactive Guide
+                {t.curriculumSubtitle}
               </p>
             </div>
             {onCloseToStudio && (
@@ -185,7 +212,7 @@ export default function CurriculumPage({
                 isLight ? 'text-slate-700' : 'text-slate-300'
               }`}
             >
-              <span>Overall Progress</span>
+              <span>{t.overallProgress}</span>
               <span className={`font-mono ${isLight ? 'text-emerald-700 font-bold' : 'text-emerald-400'}`}>
                 {progressPercentage}% ({completedCount}/{totalTopicsCount})
               </span>
@@ -206,7 +233,7 @@ export default function CurriculumPage({
           <div className="mt-3">
             <input
               type="text"
-              placeholder="Search topics (e.g. strings, loops)..."
+              placeholder={t.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className={`w-full px-3 py-1.5 rounded-lg border text-xs focus:outline-none focus:border-emerald-500 ${
@@ -223,8 +250,11 @@ export default function CurriculumPage({
           {filteredModules.map((m) => {
             const isModuleActive = m.id === selectedModuleId;
             const completedInModule = m.topics.filter(
-              (t) => completedTopics[t.id]
+              (top) => completedTopics[top.id]
             ).length;
+            const modTitle = isUrdulish && MODULE_URDULISH[m.id]
+              ? MODULE_URDULISH[m.id].title
+              : m.title;
 
             return (
               <div
@@ -265,14 +295,14 @@ export default function CurriculumPage({
                     </span>
                     <div className="truncate">
                       <p className="text-xs truncate font-bold leading-tight">
-                        {m.title}
+                        {modTitle}
                       </p>
                       <span
                         className={`text-[10px] font-normal ${
                           isLight ? 'text-slate-500' : 'text-slate-400'
                         }`}
                       >
-                        {completedInModule}/{m.topics.length} completed
+                        {completedInModule}/{m.topics.length} {t.completedOf}
                       </span>
                     </div>
                   </div>
@@ -292,14 +322,17 @@ export default function CurriculumPage({
                       isLight ? 'bg-white border-slate-200' : 'bg-slate-950/40 border-slate-800'
                     }`}
                   >
-                    {m.topics.map((t) => {
-                      const isSelected = t.id === activeTopic.id;
-                      const isDone = !!completedTopics[t.id];
+                    {m.topics.map((top) => {
+                      const isSelected = top.id === activeTopic.id;
+                      const isDone = !!completedTopics[top.id];
+                      const topTitle = isUrdulish && TOPIC_URDULISH[top.id]?.title
+                        ? TOPIC_URDULISH[top.id].title
+                        : top.title;
 
                       return (
                         <button
-                          key={t.id}
-                          onClick={() => selectTopic(m.id, t.id, true)}
+                          key={top.id}
+                          onClick={() => selectTopic(m.id, top.id, true)}
                           className={`w-full px-2.5 py-2 rounded-lg text-left flex items-center justify-between text-xs transition-all ${
                             isSelected
                               ? isLight
@@ -314,27 +347,27 @@ export default function CurriculumPage({
                             <span
                               onClick={(e) => {
                                 e.stopPropagation();
-                                toggleCompleted(t.id);
+                                toggleCompleted(top.id);
                               }}
-                              className={`w-4 h-4 rounded-full border text-[9px] font-mono font-bold flex items-center justify-center shrink-0 transition-colors ${
+                              className={`px-1 py-0.2 rounded border text-[9px] font-mono font-bold flex items-center justify-center shrink-0 transition-colors ${
                                 isDone
                                   ? 'bg-emerald-500 border-emerald-400 text-slate-950'
                                   : isLight
-                                  ? 'border-slate-300 hover:border-emerald-500 text-slate-400'
-                                  : 'border-slate-600 hover:border-emerald-400 text-slate-400'
+                                  ? 'bg-slate-100 border-slate-300 text-slate-400 hover:border-emerald-500'
+                                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-emerald-400'
                               }`}
                               title={isDone ? 'Mark as incomplete' : 'Mark as done'}
                             >
-                              {isDone ? '✓' : ''}
+                              {isDone ? 'DONE' : 'TODO'}
                             </span>
                             <span
                               className={`font-mono text-[11px] ${
                                 isLight ? 'text-slate-500' : 'text-slate-400'
                               }`}
                             >
-                              {t.topicNumber}
+                              {top.topicNumber}
                             </span>
-                            <span className="truncate">{t.title}</span>
+                            <span className="truncate">{topTitle}</span>
                           </div>
                         </button>
                       );
@@ -391,7 +424,7 @@ export default function CurriculumPage({
                     : 'bg-slate-800 hover:bg-slate-700 text-amber-300 border-slate-700'
                 }`}
               >
-                <span>{showIntroAnimation ? 'Show Full Guide' : 'Replay Topic Intro'}</span>
+                <span>{showIntroAnimation ? t.showFullGuide : t.replayIntro}</span>
               </button>
 
               <button
@@ -406,14 +439,14 @@ export default function CurriculumPage({
                     : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-emerald-500'
                 }`}
               >
-                <span>{completedTopics[activeTopic.id] ? 'Completed' : 'Mark as Done'}</span>
+                <span>{completedTopics[activeTopic.id] ? t.completedBadge : t.markDone}</span>
               </button>
 
               <button
                 onClick={() => onLoadCodeIntoStudio(activeTopic.guide.codeExample)}
                 className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition"
               >
-                <span>Open in Studio</span>
+                <span>{t.openStudioBtn}</span>
               </button>
             </div>
           </div>
@@ -425,6 +458,7 @@ export default function CurriculumPage({
                 topic={activeTopic}
                 module={activeModule}
                 theme={theme}
+                lang={lang}
                 onContinue={() => setShowIntroAnimation(false)}
                 onOpenInStudio={onLoadCodeIntoStudio}
               />
@@ -463,14 +497,14 @@ export default function CurriculumPage({
                     isLight ? 'text-slate-900' : 'text-white'
                   }`}
                 >
-                  {activeTopic.title}
+                  {displayTopicTitle}
                 </h1>
                 <p
                   className={`mt-3 text-sm sm:text-base leading-relaxed ${
                     isLight ? 'text-slate-600' : 'text-slate-300'
                   }`}
                 >
-                  {activeTopic.guide.overview}
+                  {displayTopicOverview}
                 </p>
               </div>
 
@@ -482,7 +516,7 @@ export default function CurriculumPage({
                       isLight ? 'text-emerald-800' : 'text-emerald-400'
                     }`}
                   >
-                    Key Principles & Mechanisms
+                    {t.keyPrinciples}
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {activeTopic.guide.keyPoints.map((pt, idx) => (
@@ -516,9 +550,9 @@ export default function CurriculumPage({
                 </div>
               )}
 
-              {/* Interactive Code Playground / Example */}
-              <div className="rounded-2xl bg-[#0b1120] border border-slate-800 overflow-hidden shadow-2xl">
-                <div className="px-4 py-3 bg-[#131c2e] border-b border-slate-800 flex items-center justify-between">
+              {/* Interactive Code Playground / Example — ALWAYS STAYS BLACK */}
+              <div className="rounded-2xl bg-[#090e17] border border-slate-800 overflow-hidden shadow-2xl">
+                <div className="px-4 py-3 bg-[#0f172a] border-b border-slate-800 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-xs font-bold text-slate-200">
                       topic_{activeTopic.topicNumber.replace('.', '_')}_demo.py
@@ -529,13 +563,13 @@ export default function CurriculumPage({
                       onClick={() => copyCode(activeTopic.guide.codeExample)}
                       className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition"
                     >
-                      {copiedCode ? 'Copied' : 'Copy'}
+                      {copiedCode ? t.copiedBtn : t.copyBtn}
                     </button>
                     <button
                       onClick={() => onLoadCodeIntoStudio(activeTopic.guide.codeExample)}
                       className="px-3 py-1 text-xs font-bold rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition"
                     >
-                      Run in Visualizer
+                      {t.runInVisualizer}
                     </button>
                   </div>
                 </div>
@@ -544,18 +578,18 @@ export default function CurriculumPage({
                   <pre>{activeTopic.guide.codeExample}</pre>
                 </div>
 
-                {/* Code Explanation & Expected Output Preview */}
-                <div className="p-4 bg-[#0d1627] border-t border-slate-800/80 space-y-3">
+                {/* Code Explanation & Expected Output Preview — ALWAYS STAYS BLACK */}
+                <div className="p-4 bg-[#090e17] border-t border-slate-800 space-y-3">
                   <p className="text-xs text-slate-300">
-                    <strong className="text-slate-100">Walkthrough: </strong>
-                    {activeTopic.guide.codeExplanation}
+                    <strong className="text-slate-100">{t.walkthrough}: </strong>
+                    {displayCodeExplanation}
                   </p>
                   {activeTopic.guide.outputSample && (
                     <div>
                       <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
-                        Terminal Output Preview:
+                        {t.terminalPreview}:
                       </span>
-                      <pre className="p-3 rounded-lg bg-black/60 border border-slate-800 text-xs font-mono text-slate-300 leading-normal">
+                      <pre className="p-3 rounded-lg bg-black border border-slate-800 text-xs font-mono text-slate-300 leading-normal">
                         {activeTopic.guide.outputSample}
                       </pre>
                     </div>
@@ -564,7 +598,7 @@ export default function CurriculumPage({
               </div>
 
               {/* Common Pitfalls / Tips */}
-              {activeTopic.guide.commonMistakes && activeTopic.guide.commonMistakes.length > 0 && (
+              {displayCommonMistakes && displayCommonMistakes.length > 0 && (
                 <div
                   className={`p-4 rounded-xl border ${
                     isLight
@@ -578,7 +612,7 @@ export default function CurriculumPage({
                         isLight ? 'text-amber-800' : 'text-amber-400'
                       }`}
                     >
-                      Common Beginner Traps:
+                      {t.commonTraps}:
                     </span>
                   </div>
                   <ul
@@ -586,7 +620,7 @@ export default function CurriculumPage({
                       isLight ? 'text-slate-700' : 'text-slate-300'
                     }`}
                   >
-                    {activeTopic.guide.commonMistakes.map((m, i) => (
+                    {displayCommonMistakes.map((m, i) => (
                       <li key={i}>{m}</li>
                     ))}
                   </ul>
@@ -607,7 +641,7 @@ export default function CurriculumPage({
                       isLight ? 'text-slate-900' : 'text-white'
                     }`}
                   >
-                    Knowledge Check: {activeTopic.title}
+                    {t.knowledgeCheck}: {displayTopicTitle}
                   </h3>
                 </div>
 
@@ -616,15 +650,15 @@ export default function CurriculumPage({
                     isLight ? 'text-slate-800' : 'text-slate-200'
                   }`}
                 >
-                  {activeTopic.exercise.question}
+                  {displayExerciseQuestion}
                 </p>
 
                 {/* Multiple choice options */}
-                {activeTopic.exercise.options && (
+                {displayExerciseOptions && (
                   <div className="space-y-2">
-                    {activeTopic.exercise.options.map((opt, idx) => {
+                    {displayExerciseOptions.map((opt, idx) => {
                       const isSelected = quizSelection === idx;
-                      const isCorrect = idx === activeTopic.exercise.correctOption;
+                      const isCorrect = idx === (activeTopic.exercise.correctOption ?? 1);
                       let optionClasses =
                         'p-3 rounded-xl border text-xs sm:text-sm font-medium w-full text-left transition-all flex items-center justify-between ';
 
@@ -682,7 +716,7 @@ export default function CurriculumPage({
                         disabled={quizSelection === null || quizSubmitted}
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950 disabled:opacity-50 transition"
                       >
-                        Submit Answer
+                        {t.submitAnswer}
                       </button>
 
                       {quizSubmitted && (
@@ -697,7 +731,7 @@ export default function CurriculumPage({
                               : 'text-slate-400 hover:text-white'
                           }`}
                         >
-                          Retry Question
+                          {t.retryQuestion}
                         </button>
                       )}
                     </div>
@@ -713,9 +747,9 @@ export default function CurriculumPage({
                         <strong
                           className={isLight ? 'text-emerald-700' : 'text-emerald-400'}
                         >
-                          Explanation:{' '}
+                          {t.explanation}:{' '}
                         </strong>
-                        {activeTopic.exercise.explanation}
+                        {displayExerciseExplanation}
                       </div>
                     )}
                   </div>
@@ -733,7 +767,7 @@ export default function CurriculumPage({
                         isLight ? 'text-amber-800' : 'text-amber-400'
                       }`}
                     >
-                      Hands-On Coding Challenge:
+                      {t.codingChallenge}:
                     </span>
                     <div className="flex items-center gap-3">
                       <button
@@ -742,7 +776,7 @@ export default function CurriculumPage({
                         }
                         className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition"
                       >
-                        Solve in Studio Editor
+                        {t.solveInStudio}
                       </button>
                       <button
                         onClick={() => setShowCodeSolution((s) => !s)}
@@ -752,12 +786,12 @@ export default function CurriculumPage({
                             : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                         }`}
                       >
-                        {showCodeSolution ? 'Hide Solution' : 'Reveal Solution'}
+                        {showCodeSolution ? t.hideSolution : t.revealSolution}
                       </button>
                     </div>
 
                     {showCodeSolution && activeTopic.exercise.solutionCode && (
-                      <div className="p-3 rounded-lg bg-black/80 border border-emerald-500/30 text-xs font-mono text-emerald-300">
+                      <div className="p-3 rounded-lg bg-black border border-emerald-500/30 text-xs font-mono text-emerald-300">
                         <pre>{activeTopic.exercise.solutionCode}</pre>
                       </div>
                     )}
@@ -779,14 +813,14 @@ export default function CurriculumPage({
                       : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
                   }`}
                 >
-                  Previous Topic
+                  {t.prevTopic}
                 </button>
 
                 <button
                   onClick={goToNextTopic}
                   className="px-6 py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 shadow-lg shadow-emerald-950 transition"
                 >
-                  Next Topic
+                  {t.nextTopic}
                 </button>
               </div>
             </div>
