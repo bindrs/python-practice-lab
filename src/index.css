@@ -120,8 +120,8 @@ button.go:hover {
 /* Workspace split */
 .work {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2.5fr);
   min-height: 0;
+  position: relative;
 }
 
 .edp {
@@ -129,7 +129,84 @@ button.go:hover {
   flex-direction: column;
   min-height: 0;
   background: var(--panel);
-  border-right: 1px solid var(--line);
+  border-right: none;
+  overflow: hidden;
+}
+
+.work-resizer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: col-resize;
+  user-select: none;
+  background: transparent;
+  z-index: 25;
+  outline: none;
+  touch-action: none;
+}
+
+.work-resizer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 2px;
+  width: 2px;
+  background: var(--line);
+  transition: background 0.15s ease, width 0.15s ease, box-shadow 0.15s ease;
+}
+
+.work-resizer:hover::before,
+.work-resizer.is-dragging::before,
+.work-resizer:focus-visible::before {
+  background: var(--num);
+  width: 3px;
+  left: 1.5px;
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.65);
+}
+
+.work-resizer-handle {
+  position: relative;
+  width: 14px;
+  height: 44px;
+  background: #1e293b;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  z-index: 2;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.75;
+  cursor: col-resize;
+}
+
+.work-resizer:hover .work-resizer-handle,
+.work-resizer.is-dragging .work-resizer-handle,
+.work-resizer:focus-visible .work-resizer-handle {
+  opacity: 1;
+  background: #0f172a;
+  border-color: var(--num);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.55);
+  transform: scale(1.1);
+}
+
+.work-resizer-dots {
+  width: 3px;
+  height: 3px;
+  background: var(--mute);
+  border-radius: 50%;
+  transition: background 0.15s ease;
+}
+
+.work-resizer:hover .work-resizer-dots,
+.work-resizer.is-dragging .work-resizer-dots,
+.work-resizer:focus-visible .work-resizer-dots {
+  background: var(--num);
 }
 
 .tab-bar {
@@ -2003,7 +2080,8 @@ textarea#code {
 @media (max-width: 900px) {
   body { overflow: auto; }
   .app { height: auto; display: block; }
-  .work { display: block; }
+  .work { display: block !important; }
+  .work-resizer { display: none !important; }
   .edp .ed { height: 260px; }
   .term-deck { height: 220px; }
   .unified-stage { min-height: 280px; }

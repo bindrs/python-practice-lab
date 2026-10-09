@@ -75,6 +75,100 @@ export default function App() {
     });
   };
 
+  const workContainerRef = useRef<HTMLDivElement>(null);
+  const [codebaseWidth, setCodebaseWidth] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem('codebase_width_percent');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 15 && val <= 80) return val;
+      }
+    } catch {
+      // ignore
+    }
+    return 30; // default 30% codebase
+  });
+  const [isDraggingResizer, setIsDraggingResizer] = useState(false);
+  const isDraggingRef = useRef(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('codebase_width_percent', codebaseWidth.toString());
+    } catch {
+      // ignore
+    }
+  }, [codebaseWidth]);
+
+  const handleResizerMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
+    isDraggingRef.current = true;
+    setIsDraggingResizer(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      if (!isDraggingRef.current || !workContainerRef.current) return;
+      const rect = workContainerRef.current.getBoundingClientRect();
+      const relativeX = moveEvent.clientX - rect.left;
+      const newPercent = (relativeX / rect.width) * 100;
+      const clamped = Math.min(80, Math.max(16, newPercent));
+      setCodebaseWidth(parseFloat(clamped.toFixed(1)));
+    };
+
+    const onMouseUp = () => {
+      isDraggingRef.current = false;
+      setIsDraggingResizer(false);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  const handleResizerTouchStart = (e: React.TouchEvent) => {
+    isDraggingRef.current = true;
+    setIsDraggingResizer(true);
+
+    const onTouchMove = (moveEvent: TouchEvent) => {
+      if (!isDraggingRef.current || !workContainerRef.current || !moveEvent.touches[0]) return;
+      const rect = workContainerRef.current.getBoundingClientRect();
+      const relativeX = moveEvent.touches[0].clientX - rect.left;
+      const newPercent = (relativeX / rect.width) * 100;
+      const clamped = Math.min(80, Math.max(16, newPercent));
+      setCodebaseWidth(parseFloat(clamped.toFixed(1)));
+    };
+
+    const onTouchEnd = () => {
+      isDraggingRef.current = false;
+      setIsDraggingResizer(false);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+    };
+
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+  };
+
+  const handleResizerDoubleClick = () => {
+    setCodebaseWidth(30);
+  };
+
+  const handleResizerKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      setCodebaseWidth((prev) => Math.max(16, +(prev - 2).toFixed(1)));
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      setCodebaseWidth((prev) => Math.min(80, +(prev + 2).toFixed(1)));
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setCodebaseWidth(30);
+    }
+  };
+
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
   }, [autoTagCloser]);
@@ -2580,7 +2674,11 @@ export default function App() {
       </div>
 
       {/* Editor & Metaphor Arena */}
-      <div className="work">
+      <div
+        ref={workContainerRef}
+        className="work"
+        style={{ gridTemplateColumns: `${codebaseWidth}% 8px minmax(0, 1fr)` }}
+      >
         <aside className="edp">
           <div className="tab-bar">
             <div className="tab">main.py</div>
@@ -2739,6 +2837,28 @@ export default function App() {
             <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
           </div>
         </aside>
+
+        {/* Draggable Divider Line between Codebase and Visualizer */}
+        <div
+          className={`work-resizer ${isDraggingResizer ? 'is-dragging' : ''}`}
+          onMouseDown={handleResizerMouseDown}
+          onTouchStart={handleResizerTouchStart}
+          onDoubleClick={handleResizerDoubleClick}
+          onKeyDown={handleResizerKeyDown}
+          role="separator"
+          aria-orientation="vertical"
+          aria-valuenow={Math.round(codebaseWidth)}
+          aria-valuemin={16}
+          aria-valuemax={80}
+          tabIndex={0}
+          title={`Drag to resize codebase (${Math.round(codebaseWidth)}%) & visualizer (${Math.round(100 - codebaseWidth)}%) · Double-click to reset`}
+        >
+          <div className="work-resizer-handle">
+            <span className="work-resizer-dots" />
+            <span className="work-resizer-dots" />
+            <span className="work-resizer-dots" />
+          </div>
+        </div>
 
         <main className="viz">
           {/* Mascot Guidance */}
