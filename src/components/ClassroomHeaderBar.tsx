@@ -20,6 +20,7 @@ import {
   Power,
   AlertTriangle,
   ShieldCheck,
+  Database,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -328,6 +329,15 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         >
           {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
         </button>
+
+        {/* InsForge Backend Status Badge */}
+        <div
+          className="hidden xl:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 text-[10px] font-mono cursor-default"
+          title="Connected to InsForge Backend Database (python visuler: 6d36a9cc-af0c-448d-8ccb-d63a3721632f)"
+        >
+          <Database className="w-3 h-3 text-indigo-400 flex-shrink-0" />
+          <span>InsForge DB</span>
+        </div>
 
         {/* Session Persistence Badge */}
         <div

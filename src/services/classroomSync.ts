@@ -1,4 +1,5 @@
 import { BroadcastMessage, ClassroomUser, UserRole } from '../components/classroomTypes';
+import { insforgeService } from './insforgeService';
 
 const CHANNEL_NAME = 'python_classroom_broadcast_v2';
 const STORAGE_PEERS_KEY = 'python_classroom_active_peers';
@@ -46,6 +47,7 @@ export class ClassroomSyncService {
   private messageListeners: ((msg: BroadcastMessage) => void)[] = [];
   private peersListeners: ((peers: ClassroomUser[]) => void)[] = [];
   private heartbeatInterval: any = null;
+  private heartbeatTick = 0;
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -116,6 +118,11 @@ export class ClassroomSyncService {
     // Register into active peers
     this.upsertPeer(this.currentUser);
 
+    // Save user to InsForge cloud database
+    insforgeService.saveUser(this.currentUser).catch((err) => {
+      console.warn('InsForge save user background exception:', err);
+    });
+
     // Broadcast join event
     this.broadcast({
       action: 'peer_join',
@@ -152,6 +159,11 @@ export class ClassroomSyncService {
         if (this.currentUser) {
           this.currentUser.lastPing = Date.now();
           this.upsertPeer(this.currentUser);
+
+          // Refresh status in InsForge database
+          insforgeService.saveUser(this.currentUser).catch(() => {});
+          insforgeService.pingUser(this.currentUser.sessionId).catch(() => {});
+
           this.startHeartbeat();
           // Broadcast to other tabs that this peer is still active after refresh
           this.broadcast({
@@ -201,6 +213,9 @@ export class ClassroomSyncService {
 
     this.upsertPeer(this.currentUser);
 
+    // Sync media state to InsForge
+    insforgeService.updateMedia(this.currentUser.sessionId, cameraActive, micActive).catch(() => {});
+
     this.broadcast({
       action: 'media_toggle',
       sender: this.currentUser,
@@ -227,6 +242,9 @@ export class ClassroomSyncService {
     } catch {
       // ignore
     }
+
+    // Persist teacher code to InsForge cloud database
+    insforgeService.saveClassCode(this.currentUser.classCode, this.currentUser.username, code).catch(() => {});
 
     this.broadcast({
       action: 'code_broadcast',
@@ -307,6 +325,9 @@ export class ClassroomSyncService {
       });
       this.removePeer(sid);
 
+      // Deactivate user in InsForge database
+      insforgeService.deactivateUser(sid).catch(() => {});
+
       try {
         localStorage.removeItem(`${STORAGE_PERSISTENT_SESSION_PREFIX}${sid}`);
         localStorage.removeItem(STORAGE_ACTIVE_SESSION_GLOBAL);
@@ -366,7 +387,8 @@ export class ClassroomSyncService {
 
   private startHeartbeat() {
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
-    this.heartbeatInterval = setInterval(() => {
+    this.heartbeatTick = 0;
+    this.heartbeatInterval = setInterval(async () => {
       if (!this.currentUser) return;
       this.currentUser.lastPing = Date.now();
       this.upsertPeer(this.currentUser);
@@ -379,6 +401,24 @@ export class ClassroomSyncService {
       });
 
       this.cleanStalePeers();
+
+      this.heartbeatTick++;
+      // Every 2 ticks (approx 8 seconds), ping InsForge and sync remote peers from database
+      if (this.heartbeatTick % 2 === 0) {
+        insforgeService.pingUser(this.currentUser.sessionId).catch(() => {});
+        try {
+          const remoteUsers = await insforgeService.fetchClassUsers(this.currentUser.classCode);
+          if (remoteUsers && remoteUsers.length > 0) {
+            remoteUsers.forEach((remoteUser) => {
+              if (remoteUser.sessionId !== this.currentUser?.sessionId) {
+                this.upsertPeer(remoteUser);
+              }
+            });
+          }
+        } catch {
+          // ignore
+        }
+      }
     }, 4000);
   }
 
