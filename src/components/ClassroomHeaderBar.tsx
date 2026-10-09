@@ -29,6 +29,9 @@ import {
   Square,
   Circle,
   VolumeX,
+  Film,
+  Monitor,
+  Layers,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -64,6 +67,9 @@ interface ClassroomHeaderBarProps {
   isRecording?: boolean;
   recordingDurationStr?: string;
   onToggleRecording?: () => void;
+  recordingMode?: 'lecture_composite' | 'screen_only' | 'camera_only';
+  lectureChaptersCount?: number;
+  onStartLectureRecording?: (mode: 'lecture_composite' | 'screen_only' | 'camera_only') => void;
 }
 
 export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
@@ -97,8 +103,12 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   isRecording = false,
   recordingDurationStr = '00:00',
   onToggleRecording,
+  recordingMode = 'lecture_composite',
+  lectureChaptersCount = 0,
+  onStartLectureRecording,
 }) => {
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
+  const [showRecModeMenu, setShowRecModeMenu] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
@@ -399,36 +409,133 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
 
       {/* Right: Camera Recording, AV Controls, Dashboard, Hide Header */}
       <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
-        {/* User Requested: Camera Recording Button */}
+        {/* User Requested: Record Screen & Web Cam Automatic Lecture Video Button */}
         {onToggleRecording && (
-          <button
-            type="button"
-            onClick={onToggleRecording}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all shadow-sm ${
-              isRecording
-                ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse ring-2 ring-rose-400/50'
-                : 'bg-slate-900 hover:bg-slate-800 text-rose-400 hover:text-rose-300 border border-rose-500/30'
-            }`}
-            title={
-              isRecording
-                ? `Recording in progress (${recordingDurationStr}) — Click to stop, save & download video`
-                : 'Record camera video & audio session with 1-click download'
-            }
-          >
+          <div className="relative flex items-center">
             {isRecording ? (
-              <>
+              <button
+                type="button"
+                onClick={onToggleRecording}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all shadow-md bg-rose-600 hover:bg-rose-500 text-white animate-pulse ring-2 ring-rose-400/50 shadow-rose-950/60"
+                title={`Lecture Recording in progress (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
+              >
                 <span className="w-2 h-2 rounded-full bg-white animate-ping" />
                 <Square className="w-3 h-3 fill-current" />
-                <span>REC {recordingDurationStr}</span>
-              </>
+                <span>REC LECTURE {recordingDurationStr}</span>
+                {lectureChaptersCount > 0 && (
+                  <span className="hidden xl:inline bg-rose-950/80 text-rose-200 border border-rose-400/40 px-1.5 py-0.2 rounded text-[10px] font-mono">
+                    {lectureChaptersCount} ch
+                  </span>
+                )}
+              </button>
             ) : (
-              <>
-                <Circle className="w-3 h-3 fill-rose-500 text-rose-500" />
-                <Video className="w-3.5 h-3.5 text-rose-400" />
-                <span className="hidden sm:inline">Record Cam</span>
-              </>
+              <div className="flex items-center rounded-md overflow-hidden shadow-md shadow-cyan-950/40 border border-cyan-500/40">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onStartLectureRecording) {
+                      onStartLectureRecording('lecture_composite');
+                    } else {
+                      onToggleRecording();
+                    }
+                  }}
+                  className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-xs font-bold transition-all"
+                  title="Record Screen and Web Cam PiP simultaneously to make an automatic lecture video with chapters & notes"
+                >
+                  <Film className="w-3.5 h-3.5 text-cyan-200 flex-shrink-0" />
+                  <span>Record Lecture</span>
+                  <span className="hidden lg:inline text-[10px] text-cyan-200 font-mono font-normal">
+                    (Screen+Cam)
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRecModeMenu((prev) => !prev)}
+                  className="px-1.5 py-1 bg-cyan-700 hover:bg-cyan-600 text-cyan-100 border-l border-cyan-500/40 transition-colors"
+                  title="Select recording mode (Screen+Cam, Screen Only, or Camera Only)"
+                >
+                  <ChevronDown className="w-3 h-3" />
+                </button>
+              </div>
             )}
-          </button>
+
+            {/* Recording Mode Dropdown Menu */}
+            {!isRecording && showRecModeMenu && (
+              <div className="absolute right-0 top-full mt-1.5 w-64 bg-[#0f172a] border border-cyan-500/40 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 text-xs">
+                <div className="px-2 py-1 font-bold text-slate-200 border-b border-slate-800 mb-1 text-[11px] flex items-center justify-between">
+                  <span>Select Lecture Format</span>
+                  <span className="text-[10px] text-cyan-400 font-mono">1080p HD</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecModeMenu(false);
+                    if (onStartLectureRecording) {
+                      onStartLectureRecording('lecture_composite');
+                    } else {
+                      onToggleRecording();
+                    }
+                  }}
+                  className="w-full text-left p-2 rounded-lg hover:bg-cyan-950/60 flex items-start gap-2 text-slate-200 hover:text-cyan-200 transition-colors"
+                >
+                  <Layers className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold flex items-center gap-1.5">
+                      <span>Screen + WebCam PiP</span>
+                      <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded">Recommended</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Visualizer screen with camera overlay in corner, mixed audio & auto chapters
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecModeMenu(false);
+                    if (onStartLectureRecording) {
+                      onStartLectureRecording('screen_only');
+                    } else {
+                      onToggleRecording();
+                    }
+                  }}
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-slate-200 transition-colors"
+                >
+                  <Monitor className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold">Screen Only</div>
+                    <div className="text-[10px] text-slate-400">
+                      Record Python code editor, turtle canvas & debugger screen only
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRecModeMenu(false);
+                    if (onStartLectureRecording) {
+                      onStartLectureRecording('camera_only');
+                    } else {
+                      onToggleRecording();
+                    }
+                  }}
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-slate-200 transition-colors"
+                >
+                  <Video className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <div className="font-bold">Camera Only</div>
+                    <div className="text-[10px] text-slate-400">
+                      Record webcam video & microphone audio feed
+                    </div>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Student Classroom Dashboard Toggle */}

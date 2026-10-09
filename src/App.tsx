@@ -30,7 +30,10 @@ import {
   Download,
   X,
   Check,
+  Film,
 } from 'lucide-react';
+import { lectureRecorder, LectureResult } from './services/lectureRecorderService';
+import { LectureVideoModal } from './components/LectureVideoModal';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -254,14 +257,14 @@ export default function App() {
   const [activePresenterName, setActivePresenterName] = useState<string | null>(null);
   const [activePresenterSessionId, setActivePresenterSessionId] = useState<string | null>(null);
 
-  // Camera recording states
+  // Automatic Lecture Recording states (Screen + WebCam PiP & Auto Lecture Video)
   const [isRecording, setIsRecording] = useState<boolean>(false);
   const [recordingDuration, setRecordingDuration] = useState<number>(0);
   const [recordingDurationStr, setRecordingDurationStr] = useState<string>('00:00');
   const recordingDurationStrRef = useRef<string>('00:00');
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunksRef = useRef<Blob[]>([]);
-  const recordingTimerRef = useRef<any>(null);
+  const [recordingMode, setRecordingMode] = useState<'lecture_composite' | 'screen_only' | 'camera_only'>('lecture_composite');
+  const [lectureChaptersCount, setLectureChaptersCount] = useState<number>(0);
+  const [recordedLectureResult, setRecordedLectureResult] = useState<LectureResult | null>(null);
   const [recordedVideoModal, setRecordedVideoModal] = useState<{
     url: string;
     blob: Blob;
@@ -269,6 +272,34 @@ export default function App() {
     durationStr: string;
     sizeMb: string;
   } | null>(null);
+
+  // Subscribe to lectureRecorder real-time duration and events
+  useEffect(() => {
+    const unsubDuration = lectureRecorder.onDurationUpdate((sec, str) => {
+      setRecordingDuration(sec);
+      setRecordingDurationStr(str);
+      recordingDurationStrRef.current = str;
+    });
+
+    const unsubChapter = lectureRecorder.onChapterAdded(() => {
+      setLectureChaptersCount(lectureRecorder.getChapters().length);
+    });
+
+    const unsubFinished = lectureRecorder.onFinished((result) => {
+      setIsRecording(false);
+      setRecordedLectureResult(result);
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `🎓 <b>Lecture Video Saved:</b> <i>${result.topicTitle}</i> downloaded (${result.durationStr}, ${result.sizeMb} MB) with ${result.chapters.length} auto-tracked chapters!`;
+      }
+    });
+
+    return () => {
+      unsubDuration();
+      unsubChapter();
+      unsubFinished();
+    };
+  }, []);
 
   // Keyboard shortcut: Press H (when not typing in editor) to toggle Header Navbar
   useEffect(() => {
@@ -616,117 +647,95 @@ export default function App() {
     }
   };
 
-  // Camera recording toggle: record camera video & audio session with automatic download
-  const handleToggleRecording = async () => {
+  // Lecture Recording: Record Screen + WebCam PiP, mixed audio, automatic chapters & lecture video
+  const handleStartLectureRecording = async (mode: 'lecture_composite' | 'screen_only' | 'camera_only' = 'lecture_composite') => {
     if (isRecording) {
-      // Stop recording
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
+      await handleStopLectureRecording();
+      return;
+    }
+
+    try {
+      setRecordingMode(mode);
+      const codeEl = document.getElementById('code') as HTMLTextAreaElement | null;
+      const initialCode = codeEl?.value || '';
+
+      // Topic title detection
+      let topic = 'Python Programming Lecture';
+      if (initialCode.includes('def ')) {
+        topic = 'Python: Functions & Execution Tracing';
+      } else if (initialCode.includes('for ') || initialCode.includes('while ')) {
+        topic = 'Python: Loops & Iterations';
+      } else if (initialCode.includes('import turtle') || initialCode.includes('turtle.')) {
+        topic = 'Python: Turtle Visual Canvas';
+      } else if (initialCode.includes('class ')) {
+        topic = 'Python: Object-Oriented Programming';
       }
-      if (recordingTimerRef.current) {
-        clearInterval(recordingTimerRef.current);
-        recordingTimerRef.current = null;
+
+      await lectureRecorder.startRecording({
+        instructorName: currentUser?.username || 'Instructor',
+        classCode: currentUser?.classCode || 'STUDIO',
+        topicTitle: topic,
+        mode,
+        webcamStream: mediaStream,
+      });
+
+      if (initialCode) {
+        lectureRecorder.recordCodeSnapshot(initialCode);
       }
-      setIsRecording(false);
-    } else {
-      // Start recording
-      try {
-        let streamToRecord = mediaStream;
-        if (!streamToRecord || streamToRecord.getTracks().length === 0) {
-          streamToRecord = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'user' },
-            audio: true,
-          });
-          setMediaStream(streamToRecord);
-          setCameraActive(true);
-          setMicActive(true);
-          classroomSync.updateMediaStatus(true, true);
-        }
 
-        recordedChunksRef.current = [];
+      setIsRecording(true);
+      setRecordingDuration(0);
+      setRecordingDurationStr('00:00');
+      recordingDurationStrRef.current = '00:00';
+      setLectureChaptersCount(lectureRecorder.getChapters().length);
 
-        const mimeTypes = [
-          'video/webm;codecs=vp9,opus',
-          'video/webm;codecs=vp8,opus',
-          'video/webm',
-          'video/mp4',
-        ];
-        const supportedType = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || '';
-        const options = supportedType ? { mimeType: supportedType } : undefined;
-        const recorder = new MediaRecorder(streamToRecord, options);
-        mediaRecorderRef.current = recorder;
+      const modeLabel = mode === 'lecture_composite'
+        ? 'Screen + WebCam PiP'
+        : mode === 'screen_only'
+        ? 'Screen Only'
+        : 'WebCam Only';
 
-        recorder.ondataavailable = (e) => {
-          if (e.data && e.data.size > 0) {
-            recordedChunksRef.current.push(e.data);
-          }
-        };
-
-        recorder.onstop = () => {
-          const finalType = supportedType || 'video/webm';
-          const blob = new Blob(recordedChunksRef.current, { type: finalType });
-          if (blob.size === 0) return;
-          const url = URL.createObjectURL(blob);
-          const dateStr = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-          const filename = `classroom-cam-${dateStr}.webm`;
-
-          // Automatically download video file
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-
-          // Show recording playback modal
-          setRecordedVideoModal({
-            url,
-            blob,
-            filename,
-            durationStr: recordingDurationStrRef.current,
-            sizeMb: (blob.size / (1024 * 1024)).toFixed(2),
-          });
-
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `🎥 <b>Camera Recording Saved:</b> Video downloaded (${recordingDurationStrRef.current}, ${(blob.size / (1024 * 1024)).toFixed(2)} MB)!`;
-          }
-        };
-
-        recorder.start(1000);
-        setIsRecording(true);
-        setRecordingDuration(0);
-        setRecordingDurationStr('00:00');
-        recordingDurationStrRef.current = '00:00';
-
-        recordingTimerRef.current = setInterval(() => {
-          setRecordingDuration((prev) => {
-            const next = prev + 1;
-            const m = Math.floor(next / 60);
-            const s = next % 60;
-            const pad = (n: number) => n.toString().padStart(2, '0');
-            const str = `${pad(m)}:${pad(s)}`;
-            setRecordingDurationStr(str);
-            recordingDurationStrRef.current = str;
-            return next;
-          });
-        }, 1000);
-
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `🔴 <b>Camera Recording Started:</b> Audio & Video is now recording live. Click REC again to stop & save video.`;
-        }
-      } catch (err) {
-        console.error('Camera recording error:', err);
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `⚠️ <b>Recording Error:</b> Camera / microphone permission needed for recording.`;
-        }
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `🔴 <b>Lecture Recording Active (${modeLabel}):</b> Recording live lecture. Run code, visualize, and step through scripts — chapters & notes are tracked automatically! Click REC to stop & finalize.`;
+      }
+    } catch (err: any) {
+      console.error('Lecture recording start error:', err);
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `⚠️ <b>Recording Error:</b> ${err.message || 'Permission denied or screen sharing cancelled.'}`;
       }
     }
   };
 
+  const handleStopLectureRecording = async () => {
+    if (!lectureRecorder.isRecording()) {
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const result = await lectureRecorder.stopRecording();
+      setIsRecording(false);
+      setRecordedLectureResult(result);
+    } catch (err) {
+      console.error('Error stopping lecture recording:', err);
+      setIsRecording(false);
+    }
+  };
+
+  const handleToggleRecording = () => {
+    if (isRecording) {
+      handleStopLectureRecording();
+    } else {
+      handleStartLectureRecording('lecture_composite');
+    }
+  };
+
   const handleLogout = () => {
+    if (lectureRecorder.isRecording()) {
+      lectureRecorder.stopRecording().catch(() => {});
+    }
     classroomSync.endSession();
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
@@ -2831,6 +2840,12 @@ export default function App() {
         drawGut();
         say_('**Goal:** ' + U[+i][1]);
 
+        if (lectureRecorder.isRecording()) {
+          const title = U[+i]?.[0] || 'Example';
+          lectureRecorder.addChapter(`Curriculum: ${title}`, U[+i]?.[1], 'example');
+          lectureRecorder.recordCodeSnapshot(code.value);
+        }
+
         if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'select_example',
@@ -2957,6 +2972,13 @@ export default function App() {
       mode = m;
       auto = m === 'step';
       running = true;
+
+      if (lectureRecorder.isRecording()) {
+        const actionLabel = m === 'step' ? 'Stepping through code' : 'Executed Python script';
+        lectureRecorder.addChapter(actionLabel, src.slice(0, 65).replace(/\n/g, ' '), m === 'step' ? 'step' : 'run');
+        lectureRecorder.recordCodeSnapshot(src);
+      }
+
       out('python main.py', '\n', false, true);
       try {
         const prog = parseProgram(src);
@@ -3468,6 +3490,9 @@ export default function App() {
             isRecording={isRecording}
             recordingDurationStr={recordingDurationStr}
             onToggleRecording={handleToggleRecording}
+            recordingMode={recordingMode}
+            lectureChaptersCount={lectureChaptersCount}
+            onStartLectureRecording={handleStartLectureRecording}
           />
         )}
 
@@ -3484,26 +3509,31 @@ export default function App() {
               <span>Show Navbar</span>
             </button>
 
-            {/* Quick Camera Recording Button */}
+            {/* Quick Automatic Lecture Recording Button (Screen + WebCam PiP) */}
             {isRecording ? (
               <button
                 type="button"
                 onClick={handleToggleRecording}
                 className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold animate-pulse text-[11px]"
-                title={`Recording in progress (${recordingDurationStr}) — Click to stop & save video`}
+                title={`Lecture Recording in progress (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
               >
                 <Square className="w-3 h-3 fill-current" />
                 <span>REC {recordingDurationStr}</span>
+                {lectureChaptersCount > 0 && (
+                  <span className="bg-rose-950/80 text-rose-200 border border-rose-400/40 px-1 py-0.2 rounded text-[9px] font-mono">
+                    {lectureChaptersCount} ch
+                  </span>
+                )}
               </button>
             ) : (
               <button
                 type="button"
-                onClick={handleToggleRecording}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-rose-400 text-[11px] font-semibold border border-rose-500/30"
-                title="Record camera video & audio session"
+                onClick={() => handleStartLectureRecording('lecture_composite')}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-[11px] font-bold shadow-sm"
+                title="Record Screen and Web Cam simultaneously to create automatic lecture video"
               >
-                <Circle className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
-                <span>Rec Cam</span>
+                <Film className="w-3 h-3 text-cyan-200" />
+                <span>Rec Lecture</span>
               </button>
             )}
 
@@ -4062,6 +4092,14 @@ export default function App() {
           isOpen={isStudentDashboardOpen}
           onClose={() => setIsStudentDashboardOpen(false)}
           onOpenConversation={() => setIsConversationOpen(true)}
+        />
+      )}
+
+      {/* User Requested: Automatic Lecture Video Studio / Review Modal */}
+      {recordedLectureResult && (
+        <LectureVideoModal
+          lecture={recordedLectureResult}
+          onClose={() => setRecordedLectureResult(null)}
         />
       )}
 
