@@ -4,9 +4,13 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import { CURRICULUM_MODULES } from './data/curriculumData';
+import CurriculumPage from './components/CurriculumPage';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<'curriculum' | 'studio'>('curriculum');
+  const loadCodeRef = useRef<(codeStr: string, autoRun?: boolean) => void>(() => {});
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
   const [autoTagCloser, setAutoTagCloser] = useState(true);
   const autoTagCloserRef = useRef(true);
@@ -565,6 +569,7 @@ export default function App() {
       find: (s, a) => s.indexOf(S1(a, 0)),
       count: (s, a) => (S1(a, 0) ? s.split(a[0]).length - 1 : 0),
       startswith: (s, a) => s.startsWith(S1(a, 0)),
+      startwith: (s, a) => s.startsWith(S1(a, 0)),
       endswith: (s, a) => s.endsWith(S1(a, 0)),
       isdigit: (s) => /^\d+$/.test(s),
       isalpha: (s) => /^[A-Za-z]+$/.test(s),
@@ -681,10 +686,19 @@ export default function App() {
       sorted: (a) => a[0].slice().sort(cmpv),
     };
 
-    const NOOP = ['done', 'mainloop', 'exitonclick', 'Screen', 'title', 'setup', 'tracer', 'update', 'speed', 'delay'];
+    const NOOP = ['done', 'mainloop', 'exitonclick', 'Screen', 'title', 'setup', 'tracer', 'update', 'speed', 'delay', 'show', 'init', 'plot'];
     function attr(o: any, n: string) {
       if (typeof o === 'string' && SM[n]) return bi(n, (a) => SM[n](o, a));
       if (Array.isArray(o) && LM[n]) return bi(n, (a) => LM[n](o, a));
+      if (o && typeof o === 'object') {
+        if (n in o) {
+          const val = o[n];
+          if (typeof val === 'function') {
+            return bi(n, (a: any[], k: any = {}) => val(a, k));
+          }
+          return val;
+        }
+      }
       if (o && o.mod) {
         if (n === 'Turtle') return bi(n, () => ({ tur: true }));
         if (n === 'Screen') return bi(n, () => ({ scr: true }));
@@ -719,6 +733,70 @@ export default function App() {
       if (n in env.vars) return env.vars[n];
       if (n in G.vars) return G.vars[n];
       if (n === 'turtle') return { mod: true };
+      if (n === 'pandas' || n === 'pd') {
+        return {
+          mod: true,
+          read_excel: (a: any[]) => ({
+            df: true,
+            head: () => '   Name  Grade  Attendance\n0 Amina     92          98\n1 Bilal     85          90\n2 Cyrus     96         100',
+            to_excel: (f: any[]) => `Data successfully exported to ${f && f.length ? str(f[0]) : 'output.xlsx'}`
+          }),
+        };
+      }
+      if (n === 'numpy' || n === 'np') {
+        return {
+          mod: true,
+          array: (a: any[]) => (Array.isArray(a[0]) ? a[0] : a),
+          mean: (a: any[]) => {
+            const arr = Array.isArray(a[0]) ? a[0] : a;
+            return arr.length ? arr.reduce((x: any, y: any) => x + y, 0) / arr.length : 0;
+          },
+          sum: (a: any[]) => {
+            const arr = Array.isArray(a[0]) ? a[0] : a;
+            return arr.reduce((x: any, y: any) => x + y, 0);
+          },
+          zeros: (a: any[]) => Array(a[0] || 0).fill(0),
+        };
+      }
+      if (n === 'matplotlib' || n === 'plt') {
+        return {
+          mod: true,
+          pyplot: {
+            plot: () => 'Line plot rendered',
+            show: () => 'Plot displayed',
+          },
+          plot: () => 'Line plot rendered',
+          show: () => 'Plot window opened',
+        };
+      }
+      if (n === 'tkinter' || n === 'tk') {
+        return {
+          mod: true,
+          Tk: () => ({ win: true }),
+          mainloop: () => null,
+        };
+      }
+      if (n === 'pygame') {
+        return {
+          mod: true,
+          init: () => 'PyGame initialized',
+        };
+      }
+      if (n === 'sys') {
+        return {
+          mod: true,
+          version: '3.12.0',
+        };
+      }
+      if (n === 'math') {
+        return {
+          mod: true,
+          pi: Math.PI,
+          sqrt: (a: any[]) => Math.sqrt(nv(a[0])),
+          floor: (a: any[]) => Math.floor(nv(a[0])),
+          ceil: (a: any[]) => Math.ceil(nv(a[0])),
+        };
+      }
       if (BI[n]) return bi(n, BI[n]);
       if (TF[n]) return bi(n, TF[n]);
       E('NameError', `name '${n}' is not defined. Create it first, for example  ${n} = ...`);
@@ -2036,20 +2114,30 @@ export default function App() {
 
     const exSelect = $('#ex') as HTMLSelectElement;
     if (exSelect && exSelect.options.length <= 1) {
-      U.forEach((x, i) => {
-        const o = document.createElement('option');
-        o.value = String(i);
-        o.textContent = x[0];
-        exSelect.append(o);
+      CURRICULUM_MODULES.forEach((mod) => {
+        const og = document.createElement('optgroup');
+        og.label = `Module ${mod.moduleNumber}: ${mod.title}`;
+        mod.topics.forEach((top) => {
+          const o = document.createElement('option');
+          o.value = top.id;
+          o.textContent = `${top.topicNumber} ${top.title}`;
+          og.append(o);
+        });
+        exSelect.append(og);
       });
       exSelect.onchange = () => {
-        const i = exSelect.value;
-        if (i === '') return;
-        code.value = U[+i][2];
-        const highlightEl = $('#code-highlight');
-        if (highlightEl) highlightEl.innerHTML = highlightPython(code.value);
-        reset();
-        say_('**Goal:** ' + U[+i][1]);
+        const topId = exSelect.value;
+        if (!topId) return;
+        for (const m of CURRICULUM_MODULES) {
+          const found = m.topics.find((t) => t.id === topId);
+          if (found) {
+            code.value = found.guide.codeExample;
+            updateHighlight();
+            reset();
+            say_('**Topic ' + found.topicNumber + ':** ' + found.intro.summary);
+            break;
+          }
+        }
       };
     }
 
@@ -2467,6 +2555,19 @@ export default function App() {
     code.addEventListener('scroll', handleScroll);
     code.addEventListener('keydown', handleKeydown);
 
+    loadCodeRef.current = (codeStr: string, autoRun = false) => {
+      if (!code) return;
+      code.value = codeStr;
+      updateHighlight();
+      reset();
+      setViewMode('studio');
+      if (autoRun) {
+        setTimeout(() => {
+          start('run', codeStr);
+        }, 150);
+      }
+    };
+
     code.value = DEFAULT;
     updateHighlight();
     reset();
@@ -2481,149 +2582,227 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className="app">
-      {/* Top Header & Actions */}
-      <div className="tb">
-        <b>Python Studio</b>
-        <select id="ex" aria-label="Examples">
-          <option value="">Curriculum Examples</option>
-        </select>
-        <button className="go" id="run">
-          Run
-        </button>
-        <button id="step">Step</button>
-        <button id="reset">Reset</button>
-        <label className="ck">
-          <input type="checkbox" id="pr" /> Predict Output
-        </label>
-        <label className="ck">
-          Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
-        </label>
-      </div>
-
-      {/* Editor & Metaphor Arena */}
-      <div className="work">
-        <aside className="edp">
-          <div className="tab-bar">
-            <div className="tab">main.py</div>
+    <div ref={containerRef} className="flex flex-col h-screen h-[100dvh] w-full overflow-hidden bg-[#090e17]">
+      {/* Universal Navigation Header */}
+      <header className="tb justify-between shrink-0 select-none">
+        <div className="flex items-center gap-3">
+          <b className="flex items-center gap-2 text-white">
+            <span className="text-xl">🐍</span>
+            <span>Python Practice Lab</span>
+          </b>
+          <div className="flex items-center bg-[#10192a] p-1 rounded-full border border-slate-700/80">
             <button
               type="button"
-              className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
-              onClick={() => setAutoTagCloser((prev) => !prev)}
-              title="Toggle Auto Tag Closer and Auto Pair Closer"
+              onClick={() => setViewMode('curriculum')}
+              className={`px-3.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
+                viewMode === 'curriculum'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                  : 'text-slate-300 hover:text-white bg-transparent border-0'
+              }`}
             >
-              Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
+              <span>📚 Curriculum & Guide (9 Modules)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('studio')}
+              className={`px-3.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
+                viewMode === 'studio'
+                  ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                  : 'text-slate-300 hover:text-white bg-transparent border-0'
+              }`}
+            >
+              <span>⚡ Python Studio (Visualizer)</span>
             </button>
           </div>
-          <div className="ed">
-            <div className="mark" id="mark" />
-            <div className="gut" id="gut" />
-            <pre id="code-highlight" aria-hidden="true"></pre>
-            <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
+        </div>
+
+        {viewMode === 'studio' ? (
+          <div className="flex items-center gap-2">
+            <select id="ex" aria-label="Curriculum Topics" style={{ maxWidth: '260px' }}>
+              <option value="">Curriculum Topics...</option>
+            </select>
+            <button className="go" id="run">
+              Run
+            </button>
+            <button id="step">Step</button>
+            <button id="reset">Reset</button>
+            <label className="ck text-slate-300 text-xs">
+              <input type="checkbox" id="pr" /> Predict
+            </label>
+            <label className="ck text-slate-300 text-xs">
+              Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
+            </label>
           </div>
-        </aside>
+        ) : (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('studio')}
+              className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center gap-1.5 transition shadow"
+            >
+              <span>Open Code Studio ➔</span>
+            </button>
+          </div>
+        )}
+      </header>
 
-        <main className="viz">
-          {/* Mascot Guidance */}
-          <div className="mascot">
-            <div id="say"></div>
+      {/* Main Container */}
+      <div className="flex-1 min-h-0 relative overflow-hidden">
+        {/* Curriculum Page View */}
+        <div
+          style={{ display: viewMode === 'curriculum' ? 'block' : 'none' }}
+          className="h-full w-full overflow-hidden"
+        >
+          <CurriculumPage
+            onLoadCodeIntoStudio={(code) => loadCodeRef.current(code, true)}
+            onCloseToStudio={() => setViewMode('studio')}
+          />
+        </div>
+
+        {/* Python Studio Interactive Workspace */}
+        <div
+          style={{ display: viewMode === 'studio' ? 'grid' : 'none' }}
+          className="app"
+        >
+          {/* Sub Toolbar when in Studio */}
+          <div className="tb" style={{ background: '#111a2c', padding: '6px 16px', fontSize: '13px' }}>
+            <span className="text-xs text-slate-400">Workspace:</span>
+            <span className="text-xs font-semibold text-emerald-400">Interactive Visualizer</span>
+            <span className="text-slate-600">|</span>
+            <button
+              type="button"
+              onClick={() => setViewMode('curriculum')}
+              className="text-xs text-slate-300 hover:text-white bg-slate-800 border-slate-700 px-2.5 py-0.5 rounded-md"
+            >
+              📖 Browse Curriculum Lessons
+            </button>
           </div>
 
-          {/* Living Metaphor Theater */}
-          <div className="meta-theater">
-            {/* Concept Stage (Dynamic Metaphor Action) */}
-            <div className="meta-stage">
-              <div className="stage-title">
-                <span>Active Concept Animation</span>
-                <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
-                  Decision Gates · Orbit Loops · Fusion Streams
-                </span>
-              </div>
-              <div className="stage-view" id="meta-stage-view"></div>
-            </div>
-
-            {/* Professional Memory Entries Deck */}
-            <div className="meta-vessels-deck">
-              <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div>
-                  <span>Live Memory Entries</span>
-                  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
-                    Target Mention ➔ Value Drop Animation
-                  </span>
-                </div>
+          {/* Editor & Metaphor Arena */}
+          <div className="work">
+            <aside className="edp">
+              <div className="tab-bar">
+                <div className="tab">main.py</div>
                 <button
                   type="button"
-                  className={`auto-closer-toggle ${memHistoryOn ? 'on' : ''}`}
-                  onClick={() => {
-                    setMemHistoryOn((prev) => {
-                      const next = !prev;
-                      setTimeout(() => renderVesselsRef.current(), 10);
-                      return next;
-                    });
-                  }}
-                  title="Toggle Variable History Breadcrumbs"
+                  className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
+                  onClick={() => setAutoTagCloser((prev) => !prev)}
+                  title="Toggle Auto Tag Closer and Auto Pair Closer"
                 >
-                  History: {memHistoryOn ? 'ON' : 'OFF'}
+                  Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
                 </button>
               </div>
-              <div className="vessels-grid" id="vessels"></div>
+              <div className="ed">
+                <div className="mark" id="mark" />
+                <div className="gut" id="gut" />
+                <pre id="code-highlight" aria-hidden="true"></pre>
+                <textarea id="code" spellCheck={false} wrap="off" aria-label="Python code editor" />
+              </div>
+            </aside>
+
+            <main className="viz">
+              {/* Mascot Guidance */}
+              <div className="mascot">
+                <div id="say"></div>
+              </div>
+
+              {/* Living Metaphor Theater */}
+              <div className="meta-theater">
+                {/* Concept Stage (Dynamic Metaphor Action) */}
+                <div className="meta-stage">
+                  <div className="stage-title">
+                    <span>Active Concept Animation</span>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)' }}>
+                      Decision Gates · Orbit Loops · Fusion Streams
+                    </span>
+                  </div>
+                  <div className="stage-view" id="meta-stage-view"></div>
+                </div>
+
+                {/* Professional Memory Entries Deck */}
+                <div className="meta-vessels-deck">
+                  <div className="stage-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <span>Live Memory Entries</span>
+                      <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--mute)', marginLeft: '8px' }}>
+                        Target Mention ➔ Value Drop Animation
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className={`auto-closer-toggle ${memHistoryOn ? 'on' : ''}`}
+                      onClick={() => {
+                        setMemHistoryOn((prev) => {
+                          const next = !prev;
+                          setTimeout(() => renderVesselsRef.current(), 10);
+                          return next;
+                        });
+                      }}
+                      title="Toggle Variable History Breadcrumbs"
+                    >
+                      History: {memHistoryOn ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                  <div className="vessels-grid" id="vessels"></div>
+                </div>
+              </div>
+            </main>
+          </div>
+
+          {/* Output Deck */}
+          <div className="term-deck">
+            <div className="deck-tabs">
+              <button
+                id="tab-terminal-btn"
+                className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
+                onClick={() => setActiveTab('terminal')}
+              >
+                Terminal Output
+              </button>
+              <button
+                className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
+                onClick={() => setActiveTab('trace')}
+              >
+                Trace Table
+              </button>
+              <button
+                className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
+                onClick={() => setActiveTab('turtle')}
+              >
+                Turtle Canvas
+              </button>
+              <button id="clr" style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
+                Clear Output
+              </button>
+            </div>
+
+            <div className="term-screen screen" id="screen" style={{ display: activeTab === 'terminal' ? 'block' : 'none' }} aria-live="polite" />
+            <div id="tr" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: activeTab === 'trace' ? 'block' : 'none', padding: '8px' }} />
+            <div style={{ flex: 1, minHeight: 0, display: activeTab === 'turtle' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
+              <svg id="tsvg" viewBox="0 0 400 400" style={{ width: '100%', height: '100%', maxHeight: '200px' }}>
+                <line className="ax" x1="200" y1="0" x2="200" y2="400" />
+                <line className="ax" x1="0" y1="200" x2="400" y2="200" />
+                <g id="tl" />
+                <polygon id="spr" points="14,0 -9,8 -9,-8" />
+              </svg>
             </div>
           </div>
-        </main>
-      </div>
 
-      {/* Output Deck */}
-      <div className="term-deck">
-        <div className="deck-tabs">
-          <button
-            id="tab-terminal-btn"
-            className={`deck-tab-btn ${activeTab === 'terminal' ? 'active' : ''}`}
-            onClick={() => setActiveTab('terminal')}
-          >
-            Terminal Output
-          </button>
-          <button
-            className={`deck-tab-btn ${activeTab === 'trace' ? 'active' : ''}`}
-            onClick={() => setActiveTab('trace')}
-          >
-            Trace Table
-          </button>
-          <button
-            className={`deck-tab-btn ${activeTab === 'turtle' ? 'active' : ''}`}
-            onClick={() => setActiveTab('turtle')}
-          >
-            Turtle Canvas
-          </button>
-          <button id="clr" style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
-            Clear Output
-          </button>
-        </div>
-
-        <div className="term-screen screen" id="screen" style={{ display: activeTab === 'terminal' ? 'block' : 'none' }} aria-live="polite" />
-        <div id="tr" style={{ flex: 1, minHeight: 0, overflow: 'auto', display: activeTab === 'trace' ? 'block' : 'none', padding: '8px' }} />
-        <div style={{ flex: 1, minHeight: 0, display: activeTab === 'turtle' ? 'flex' : 'none', alignItems: 'center', justifyContent: 'center', background: '#fff' }}>
-          <svg id="tsvg" viewBox="0 0 400 400" style={{ width: '100%', height: '100%', maxHeight: '200px' }}>
-            <line className="ax" x1="200" y1="0" x2="200" y2="400" />
-            <line className="ax" x1="0" y1="200" x2="400" y2="200" />
-            <g id="tl" />
-            <polygon id="spr" points="14,0 -9,8 -9,-8" />
-          </svg>
-        </div>
-      </div>
-
-      {/* Predict Modal */}
-      <div className="modal" id="pred">
-        <div className="mbox">
-          <h3>Predict Before Running</h3>
-          <p style={{ color: 'var(--mute)', fontSize: '14px', margin: '4px 0 12px' }}>
-            Is code ka output kya aayega? Neeche type karo, phir run karke compare karo.
-          </p>
-          <textarea id="pt" rows={4} aria-label="Prediction input" />
-          <div className="mb">
-            <button className="go" id="pgo">
-              Verify Prediction
-            </button>
-            <button id="pno">Cancel</button>
+          {/* Predict Modal */}
+          <div className="modal" id="pred">
+            <div className="mbox">
+              <h3>Predict Before Running</h3>
+              <p style={{ color: 'var(--mute)', fontSize: '14px', margin: '4px 0 12px' }}>
+                Is code ka output kya aayega? Neeche type karo, phir run karke compare karo.
+              </p>
+              <textarea id="pt" rows={4} aria-label="Prediction input" />
+              <div className="mb">
+                <button className="go" id="pgo">
+                  Verify Prediction
+                </button>
+                <button id="pno">Cancel</button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
