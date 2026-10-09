@@ -8,6 +8,12 @@ import { useEffect, useRef, useState } from 'react';
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
+  const [autoTagCloser, setAutoTagCloser] = useState(true);
+  const autoTagCloserRef = useRef(true);
+
+  useEffect(() => {
+    autoTagCloserRef.current = autoTagCloser;
+  }, [autoTagCloser]);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -2176,12 +2182,198 @@ export default function App() {
       resetBtn.onclick = reset;
     }
 
+    const VOID_TAGS = new Set([
+      'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+      'link', 'meta', 'param', 'source', 'track', 'wbr'
+    ]);
+
     const handleInput = () => reset();
     const handleKeydown = (e: KeyboardEvent) => {
+      const active = autoTagCloserRef.current;
+      const start = code.selectionStart;
+      const end = code.selectionEnd;
+      const val = code.value;
+
+      // 1. Tab key always indents 4 spaces
       if (e.key === 'Tab') {
         e.preventDefault();
-        code.setRangeText('    ', code.selectionStart, code.selectionEnd, 'end');
+        code.setRangeText('    ', start, end, 'end');
         reset();
+        return;
+      }
+
+      if (!active) return;
+
+      // 2. Auto Tag Closer: typing '>' after an opening tag <tag> or <tag attr="val">
+      if (e.key === '>') {
+        if (start === end) {
+          // If cursor is directly before existing '>', just step over it
+          if (val[start] === '>') {
+            e.preventDefault();
+            code.selectionStart = code.selectionEnd = start + 1;
+            return;
+          }
+
+          const textBefore = val.slice(0, start);
+          // Match opening tag: <tag-name or <tag-name ...
+          const openTagMatch = textBefore.match(/<([a-zA-Z][a-zA-Z0-9-:]*)(?:\s+[^<>]*)?$/);
+          if (openTagMatch) {
+            const fullMatch = openTagMatch[0];
+            const tagName = openTagMatch[1];
+            const trimmed = fullMatch.trim();
+
+            // Ignore if it's a closing tag </..., self-closing />, or a void HTML element
+            if (!fullMatch.startsWith('</') && !trimmed.endsWith('/') && !VOID_TAGS.has(tagName.toLowerCase())) {
+              e.preventDefault();
+              const insertText = `></${tagName}>`;
+              code.setRangeText(insertText, start, end, 'preserve');
+              code.selectionStart = code.selectionEnd = start + 1; // cursor right between > and </
+              reset();
+              return;
+            }
+          }
+        }
+      }
+
+      // 3. Auto Tag Closer: typing '/' right after '<' (i.e. typing '</')
+      if (e.key === '/') {
+        if (start === end && start > 0 && val[start - 1] === '<') {
+          const textBefore = val.slice(0, start - 1);
+          const tagRegex = /<\/?([a-zA-Z][a-zA-Z0-9-:]*)(?:\s+[^<>]*)?(\/?)>/g;
+          const stack: string[] = [];
+          let m: RegExpExecArray | null;
+          while ((m = tagRegex.exec(textBefore)) !== null) {
+            const isClosing = m[0].startsWith('</');
+            const isSelfClose = m[2] === '/' || VOID_TAGS.has(m[1].toLowerCase());
+            if (isSelfClose) continue;
+            if (isClosing) {
+              if (stack.length > 0 && stack[stack.length - 1].toLowerCase() === m[1].toLowerCase()) {
+                stack.pop();
+              }
+            } else {
+              stack.push(m[1]);
+            }
+          }
+          if (stack.length > 0) {
+            const unclosedTag = stack.pop()!;
+            e.preventDefault();
+            code.setRangeText(`/${unclosedTag}>`, start, end, 'end');
+            reset();
+            return;
+          }
+        }
+      }
+
+      // 4. Auto Pair Closer: brackets, braces, and quotes
+      const PAIRS: Record<string, string> = {
+        '(': ')',
+        '[': ']',
+        '{': '}',
+        '"': '"',
+        "'": "'",
+        '`': '`',
+      };
+
+      // Step over existing closing char if typed directly before it
+      if ([']', ')', '}', '"', "'", '`'].includes(e.key)) {
+        if (start === end && val[start] === e.key) {
+          if (!(['"', "'", '`'].includes(e.key) && start > 0 && val[start - 1] === '\\')) {
+            e.preventDefault();
+            code.selectionStart = code.selectionEnd = start + 1;
+            return;
+          }
+        }
+      }
+
+      // Wrap selected text or insert matching pair
+      if (PAIRS[e.key]) {
+        const openChar = e.key;
+        const closeChar = PAIRS[openChar];
+
+        if (start !== end) {
+          e.preventDefault();
+          const selected = val.slice(start, end);
+          code.setRangeText(`${openChar}${selected}${closeChar}`, start, end, 'select');
+          code.selectionStart = start + 1;
+          code.selectionEnd = end + 1;
+          reset();
+          return;
+        } else {
+          // If quote typed right after a word character, don't auto-close (avoids interfering with contractions)
+          if (['"', "'"].includes(openChar) && start > 0 && /\w/.test(val[start - 1])) {
+            return;
+          }
+          e.preventDefault();
+          code.setRangeText(`${openChar}${closeChar}`, start, end, 'preserve');
+          code.selectionStart = code.selectionEnd = start + 1;
+          reset();
+          return;
+        }
+      }
+
+      // Wrap selection with < > when typing '<'
+      if (e.key === '<' && start !== end) {
+        e.preventDefault();
+        const selected = val.slice(start, end);
+        code.setRangeText(`<${selected}>`, start, end, 'select');
+        code.selectionStart = start + 1;
+        code.selectionEnd = end + 1;
+        reset();
+        return;
+      }
+
+      // 5. Backspace between empty pairs
+      if (e.key === 'Backspace' && start === end && start > 0) {
+        const prev = val[start - 1];
+        const next = val[start];
+        const isPair =
+          (prev === '(' && next === ')') ||
+          (prev === '[' && next === ']') ||
+          (prev === '{' && next === '}') ||
+          (prev === '"' && next === '"') ||
+          (prev === "'" && next === "'") ||
+          (prev === '`' && next === '`');
+
+        if (isPair) {
+          e.preventDefault();
+          code.setRangeText('', start - 1, start + 1, 'start');
+          reset();
+          return;
+        }
+      }
+
+      // 6. Enter key inside empty pairs or between tags: auto-indent
+      if (e.key === 'Enter' && start === end) {
+        const prevChar = val[start - 1];
+        const nextTwo = val.slice(start, start + 2);
+
+        const lastNewline = val.lastIndexOf('\n', start - 1);
+        const lineStart = lastNewline === -1 ? 0 : lastNewline + 1;
+        const currentLine = val.slice(lineStart, start);
+        const indentMatch = currentLine.match(/^\s*/);
+        const currentIndent = indentMatch ? indentMatch[0] : '';
+
+        const isBetweenTags = prevChar === '>' && nextTwo === '</';
+        const isBetweenBrackets =
+          (prevChar === '{' && val[start] === '}') ||
+          (prevChar === '[' && val[start] === ']') ||
+          (prevChar === '(' && val[start] === ')');
+
+        if (isBetweenTags || isBetweenBrackets) {
+          e.preventDefault();
+          const insert = `\n${currentIndent}    \n${currentIndent}`;
+          code.setRangeText(insert, start, end, 'preserve');
+          code.selectionStart = code.selectionEnd = start + 1 + currentIndent.length + 4;
+          reset();
+          return;
+        } else if (currentIndent.length > 0 || currentLine.trim().endsWith(':')) {
+          const extraIndent = currentLine.trim().endsWith(':') ? '    ' : '';
+          e.preventDefault();
+          const insert = `\n${currentIndent}${extraIndent}`;
+          code.setRangeText(insert, start, end, 'end');
+          reset();
+          return;
+        }
       }
     };
 
@@ -2223,7 +2415,17 @@ export default function App() {
       {/* Editor & Metaphor Arena */}
       <div className="work">
         <aside className="edp">
-          <div className="tab">main.py</div>
+          <div className="tab-bar">
+            <div className="tab">main.py</div>
+            <button
+              type="button"
+              className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
+              onClick={() => setAutoTagCloser((prev) => !prev)}
+              title="Toggle Auto Tag Closer and Auto Pair Closer"
+            >
+              Auto Tag Closer: {autoTagCloser ? 'ON' : 'OFF'}
+            </button>
+          </div>
           <div className="ed">
             <div className="mark" id="mark" />
             <div className="gut" id="gut" />

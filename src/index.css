@@ -132,6 +132,15 @@ button.go:hover {
   border-right: 1px solid var(--line);
 }
 
+.tab-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  padding-right: 10px;
+}
+
 .tab {
   font: 700 12px "JetBrains Mono", monospace;
   padding: 6px 16px;
@@ -139,6 +148,29 @@ button.go:hover {
   border-bottom: 2px solid var(--num);
   width: max-content;
   color: var(--mute);
+}
+
+.auto-closer-toggle {
+  font: 600 11px "JetBrains Mono", monospace;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel) 70%, #000);
+  border: 1px solid var(--line);
+  color: var(--mute);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.auto-closer-toggle:hover {
+  filter: brightness(1.15);
+}
+
+.auto-closer-toggle.on {
+  border-color: var(--ok);
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 10%, var(--panel));
 }
 
 .edp .ed {
