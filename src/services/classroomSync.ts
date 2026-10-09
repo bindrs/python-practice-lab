@@ -60,6 +60,9 @@ export class ClassroomSyncService {
   private lastReceivedCodeTimestamp = 0;
   private lastReceivedActionTimestamp = 0;
   private processedActionKeys = new Set<string>();
+  private activePresenterSessionId: string | null = null;
+  private activePresenterName: string | null = null;
+  private activePresenterRole: UserRole | null = null;
 
   constructor() {
     if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
@@ -291,10 +294,11 @@ export class ClassroomSyncService {
   }
 
   /**
-   * Broadcast real-time code typing/editing by teacher with debounced cloud save
+   * Broadcast real-time code typing/editing by teacher or active student presenter
    */
   public broadcastCodeChange(code: string) {
-    if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+    if (!this.currentUser) return;
+    // Allow teacher, or active student presenter, or any student in collaborative mode
     this.lastReceivedCodeTimestamp = Date.now();
 
     // 1. Broadcast immediately over local BroadcastChannel
@@ -322,13 +326,83 @@ export class ClassroomSyncService {
       // ignore
     }
 
-    // 3. Debounce save to InsForge cloud DB (600ms) so students on other browsers/devices receive it
+    // 3. Debounce save to InsForge cloud DB (600ms) so peers on other browsers/devices receive it
     if (this.codeSaveTimeout) clearTimeout(this.codeSaveTimeout);
     this.codeSaveTimeout = setTimeout(() => {
-      if (this.currentUser && this.currentUser.role === 'teacher') {
+      if (this.currentUser) {
         insforgeService.saveClassCode(this.currentUser.classCode, this.currentUser.username, code).catch(() => {});
       }
     }, 600);
+  }
+
+  /**
+   * Set and broadcast active presenter (when student or teacher takes the stage)
+   */
+  public broadcastPresenterChange(presenterSessionId: string, presenterName: string, presenterRole: UserRole) {
+    if (!this.currentUser) return;
+    this.activePresenterSessionId = presenterSessionId;
+    this.activePresenterName = presenterName;
+    this.activePresenterRole = presenterRole;
+
+    this.broadcast({
+      action: 'presenter_change',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      presenterSessionId,
+      presenterName,
+      presenterRole,
+      timestamp: Date.now(),
+    });
+  }
+
+  public getActivePresenterInfo(): { sessionId: string | null; name: string | null; role: UserRole | null } {
+    return {
+      sessionId: this.activePresenterSessionId,
+      name: this.activePresenterName,
+      role: this.activePresenterRole,
+    };
+  }
+
+  /**
+   * Teacher remote closes/mutes camera and/or microphone for students
+   */
+  public broadcastRemoteMediaControl(target: 'mic' | 'camera' | 'both', state: boolean) {
+    if (!this.currentUser || this.currentUser.role !== 'teacher') return;
+    this.broadcast({
+      action: 'remote_media_control',
+      sender: this.currentUser,
+      classCode: this.currentUser.classCode,
+      remoteMediaTarget: target,
+      remoteMediaState: state,
+      timestamp: Date.now(),
+    });
+  }
+
+  public onPresenterChange(
+    callback: (info: { presenterSessionId?: string; presenterName?: string; presenterRole?: UserRole }) => void
+  ): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'presenter_change') {
+        this.activePresenterSessionId = msg.presenterSessionId || null;
+        this.activePresenterName = msg.presenterName || null;
+        this.activePresenterRole = msg.presenterRole || null;
+        callback({
+          presenterSessionId: msg.presenterSessionId,
+          presenterName: msg.presenterName,
+          presenterRole: msg.presenterRole,
+        });
+      }
+    });
+  }
+
+  public onRemoteMediaControl(
+    callback: (target: 'mic' | 'camera' | 'both', state: boolean) => void
+  ): () => void {
+    return this.onMessage((msg) => {
+      if (msg.action === 'remote_media_control' && msg.remoteMediaTarget) {
+        callback(msg.remoteMediaTarget, !!msg.remoteMediaState);
+      }
+    });
   }
 
   /**
@@ -375,18 +449,18 @@ export class ClassroomSyncService {
     });
   }
 
-  public onTeacherAction(callback: (action: TeacherLiveAction) => void): () => void {
+  public onTeacherAction(callback: (action: TeacherLiveAction, sender?: ClassroomUser) => void): () => void {
     return this.onMessage((msg) => {
       if (msg.action === 'teacher_action' && msg.teacherAction) {
-        callback(msg.teacherAction);
+        callback(msg.teacherAction, msg.sender);
       }
     });
   }
 
-  public onCodeChange(callback: (code: string) => void): () => void {
+  public onCodeChange(callback: (code: string, sender?: ClassroomUser) => void): () => void {
     return this.onMessage((msg) => {
       if (msg.action === 'code_change' && msg.code !== undefined) {
-        callback(msg.code);
+        callback(msg.code, msg.sender);
       }
     });
   }
@@ -550,6 +624,10 @@ export class ClassroomSyncService {
         act.timestamp || msg.timestamp || 0
       );
       this.processedActionKeys.add(`${act.timestamp}_${act.type}`);
+    } else if (msg.action === 'presenter_change') {
+      this.activePresenterSessionId = msg.presenterSessionId || null;
+      this.activePresenterName = msg.presenterName || null;
+      this.activePresenterRole = msg.presenterRole || null;
     }
 
     this.messageListeners.forEach((cb) => cb(msg));
@@ -670,18 +748,18 @@ export class ClassroomSyncService {
             this.lastReceivedActionTimestamp = action.timestamp;
           }
 
-          if (this.currentUser.role === 'student') {
+          if (this.currentUser && action.teacherName !== this.currentUser.username) {
             const msg: BroadcastMessage = {
               action: 'teacher_action',
               sender: {
-                sessionId: 'teacher-cloud',
-                role: 'teacher',
+                sessionId: 'cloud-peer',
+                role: this.currentUser.role === 'teacher' ? 'student' : 'teacher',
                 username: action.teacherName,
                 classCode,
                 joinedAt: action.timestamp,
                 cameraActive: false,
                 micActive: false,
-                avatarColor: '#f59e0b',
+                avatarColor: '#10b981',
                 lastPing: Date.now(),
               },
               classCode,

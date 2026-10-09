@@ -12,7 +12,25 @@ import { ClassroomVideoTiles } from './components/ClassroomVideoTiles';
 import { ClassroomConversationPanel } from './components/ClassroomConversationPanel';
 import { StudentDashboard } from './components/StudentDashboard';
 import { webRTCService } from './services/webRTCService';
-import { Eye, Radio, Sparkles, Activity, Clock, Crown } from 'lucide-react';
+import {
+  Eye,
+  EyeOff,
+  Radio,
+  Sparkles,
+  Activity,
+  Clock,
+  Crown,
+  Code2,
+  Video,
+  VideoOff,
+  Mic,
+  MicOff,
+  Square,
+  Circle,
+  Download,
+  X,
+  Check,
+} from 'lucide-react';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -222,6 +240,51 @@ export default function App() {
     studentViewOnlyRef.current = studentViewOnly;
   }, [studentViewOnly]);
 
+  // Hide Navbar / Header for maximum visualizer screen space
+  const [isHeaderHidden, setIsHeaderHidden] = useState<boolean>(false);
+
+  // Student collaborative live coding / presenter mode (any student can code & visualize for everyone)
+  const [isStudentPresenting, setIsStudentPresenting] = useState<boolean>(false);
+  const isStudentPresentingRef = useRef<boolean>(false);
+  useEffect(() => {
+    isStudentPresentingRef.current = isStudentPresenting;
+  }, [isStudentPresenting]);
+
+  const [isOpenCodingEnabled, setIsOpenCodingEnabled] = useState<boolean>(true);
+  const [activePresenterName, setActivePresenterName] = useState<string | null>(null);
+  const [activePresenterSessionId, setActivePresenterSessionId] = useState<string | null>(null);
+
+  // Camera recording states
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [recordingDuration, setRecordingDuration] = useState<number>(0);
+  const [recordingDurationStr, setRecordingDurationStr] = useState<string>('00:00');
+  const recordingDurationStrRef = useRef<string>('00:00');
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<any>(null);
+  const [recordedVideoModal, setRecordedVideoModal] = useState<{
+    url: string;
+    blob: Blob;
+    filename: string;
+    durationStr: string;
+    sizeMb: string;
+  } | null>(null);
+
+  // Keyboard shortcut: Press H (when not typing in editor) to toggle Header Navbar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
+        return;
+      }
+      if (e.key === 'h' || e.key === 'H') {
+        setIsHeaderHidden((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   const [teacherHasNewCode, setTeacherHasNewCode] = useState<boolean>(false);
   const [, setLatestTeacherCode] = useState<string>('');
   const [autoSyncWithTeacher, setAutoSyncWithTeacher] = useState<boolean>(true);
@@ -287,71 +350,129 @@ export default function App() {
       }
     });
 
-    // Listen to real-time teacher actions (Run, Step, Reset, Switch Tab, Select Example)
-    const unsubActions = classroomSync.onTeacherAction((action) => {
+    // Listen to real-time teacher and student presenter actions (Run, Step, Reset, Switch Tab, Select Example)
+    const unsubActions = classroomSync.onTeacherAction((action, sender) => {
       const current = classroomSync.getCurrentUser();
-      if (current && current.role === 'student') {
-        const actionLabels: Record<string, string> = {
-          run: 'Ran Code ▶',
-          step: 'Stepped Line ⏭',
-          reset: 'Reset Code ↺',
-          select_example: 'Selected Example 📚',
-          switch_tab: `Switched Tab (${action.tab}) 📑`,
-          clear_output: 'Cleared Output ⌫',
-        };
-        setLatestTeacherActionNotice(`${action.teacherName}: ${actionLabels[action.type] || action.type}`);
-        setTimeout(() => setLatestTeacherActionNotice(''), 3500);
+      // Ignore if I am the one who triggered this action locally
+      if (current && sender && sender.sessionId === current.sessionId) {
+        return;
+      }
+      if (current && action.teacherName === current.username) {
+        return;
+      }
 
-        if (action.type === 'run') {
-          if (action.code !== undefined) {
-            triggerSetCodeRef.current(action.code);
-          }
-          triggerRunRef.current(action.code);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> ran the code! Executing live on your screen.`;
-          }
-        } else if (action.type === 'step') {
-          if (action.code !== undefined) {
-            triggerSetCodeRef.current(action.code);
-          }
-          triggerStepRef.current(action.code);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> stepped forward! Visualizer state mirrored.`;
-          }
-        } else if (action.type === 'reset') {
-          triggerResetRef.current();
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> reset execution.`;
-          }
-        } else if (action.type === 'select_example' && action.exampleIndex !== undefined) {
-          triggerSelectExampleRef.current(action.exampleIndex);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> Teacher <b>${action.teacherName}</b> switched to curriculum example!`;
-          }
-        } else if (action.type === 'switch_tab' && action.tab) {
-          setActiveTab(action.tab);
-        } else if (action.type === 'clear_output') {
-          const screenEl = document.getElementById('screen');
-          if (screenEl) screenEl.innerHTML = '';
-        } else if (action.type === 'speed_change' && action.speed !== undefined) {
-          const spdInput = document.getElementById('spd') as HTMLInputElement;
-          if (spdInput) {
-            spdInput.value = String(action.speed);
-            spdInput.dispatchEvent(new Event('input', { bubbles: true }));
-          }
+      const actionLabels: Record<string, string> = {
+        run: 'Ran Code ▶',
+        step: 'Stepped Line ⏭',
+        reset: 'Reset Code ↺',
+        select_example: 'Selected Example 📚',
+        switch_tab: `Switched Tab (${action.tab}) 📑`,
+        clear_output: 'Cleared Output ⌫',
+      };
+      setLatestTeacherActionNotice(`${action.teacherName}: ${actionLabels[action.type] || action.type}`);
+      setTimeout(() => setLatestTeacherActionNotice(''), 3500);
+
+      if (action.type === 'run') {
+        if (action.code !== undefined) {
+          triggerSetCodeRef.current(action.code);
+        }
+        triggerRunRef.current(action.code);
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> ran the code! Executing live on your screen.`;
+        }
+      } else if (action.type === 'step') {
+        if (action.code !== undefined) {
+          triggerSetCodeRef.current(action.code);
+        }
+        triggerStepRef.current(action.code);
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> stepped forward! Visualizer state mirrored.`;
+        }
+      } else if (action.type === 'reset') {
+        triggerResetRef.current();
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> reset execution.`;
+        }
+      } else if (action.type === 'select_example' && action.exampleIndex !== undefined) {
+        triggerSelectExampleRef.current(action.exampleIndex);
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> switched to curriculum example!`;
+        }
+      } else if (action.type === 'switch_tab' && action.tab) {
+        setActiveTab(action.tab);
+      } else if (action.type === 'clear_output') {
+        const screenEl = document.getElementById('screen');
+        if (screenEl) screenEl.innerHTML = '';
+      } else if (action.type === 'speed_change' && action.speed !== undefined) {
+        const spdInput = document.getElementById('spd') as HTMLInputElement;
+        if (spdInput) {
+          spdInput.value = String(action.speed);
+          spdInput.dispatchEvent(new Event('input', { bubbles: true }));
         }
       }
     });
 
-    // Real-time teacher code typing broadcast
-    const unsubCode = classroomSync.onCodeChange((code) => {
+    // Real-time code typing broadcast by teacher or presenting student
+    const unsubCode = classroomSync.onCodeChange((code, sender) => {
       const current = classroomSync.getCurrentUser();
-      if (current && current.role === 'student') {
-        triggerSetCodeRef.current(code);
+      if (current && sender && sender.sessionId === current.sessionId) {
+        return;
+      }
+      triggerSetCodeRef.current(code);
+    });
+
+    // Listen to presenter changes (when a student takes stage to code & visualize to everyone)
+    const unsubPresenter = classroomSync.onPresenterChange((info) => {
+      if (info.presenterSessionId && info.presenterName && info.presenterRole === 'student') {
+        setActivePresenterName(info.presenterName);
+        setActivePresenterSessionId(info.presenterSessionId);
+        if (currentUserRef.current?.sessionId !== info.presenterSessionId) {
+          setIsStudentPresenting(false);
+          if (currentUserRef.current?.role === 'student') {
+            setStudentViewOnly(true);
+          }
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `📡 <b>Student Presenter Active:</b> <b>${info.presenterName}</b> is now live coding and visualizing for everyone!`;
+          }
+        }
+      } else {
+        setActivePresenterName(null);
+        setActivePresenterSessionId(null);
+        if (currentUserRef.current?.role === 'student') {
+          setIsStudentPresenting(false);
+          setStudentViewOnly(true);
+        }
+      }
+    });
+
+    // Listen to remote media control (Teacher can close student mics and cameras)
+    const unsubRemoteMedia = classroomSync.onRemoteMediaControl((target, state) => {
+      if (currentUserRef.current?.role === 'student') {
+        if (target === 'mic' || target === 'both') {
+          setMicActive(state);
+          if (mediaStream) {
+            mediaStream.getAudioTracks().forEach((t) => (t.enabled = state));
+          }
+        }
+        if (target === 'camera' || target === 'both') {
+          setCameraActive(state);
+          if (mediaStream) {
+            mediaStream.getVideoTracks().forEach((t) => (t.enabled = state));
+          }
+        }
+        classroomSync.updateMediaStatus(
+          target === 'mic' ? cameraActive : state,
+          target === 'camera' ? micActive : state
+        );
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `🔇 <b>Classroom Notice:</b> Teacher turned ${state ? 'on' : 'off'} student ${target === 'both' ? 'microphones & cameras' : target}.`;
+        }
       }
     });
 
@@ -376,6 +497,8 @@ export default function App() {
       unsubMsg();
       unsubActions();
       unsubCode();
+      unsubPresenter();
+      unsubRemoteMedia();
     };
   }, [currentUser]);
 
@@ -423,6 +546,184 @@ export default function App() {
     const nextState = !micActive;
     setMicActive(nextState);
     classroomSync.updateMediaStatus(cameraActive, nextState);
+  };
+
+  // Student toggle to take stage: any student can code and visualize for everyone
+  const handleToggleStudentPresenting = () => {
+    if (!currentUser) return;
+    if (isStudentPresenting) {
+      // Stop presenting -> return to view mode
+      setIsStudentPresenting(false);
+      setStudentViewOnly(true);
+      setActivePresenterName(null);
+      setActivePresenterSessionId(null);
+      classroomSync.broadcastPresenterChange('', '', 'teacher');
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `👁️ <b>Returned to View Mode:</b> You stopped presenting. Now following Teacher.`;
+      }
+    } else {
+      // Start presenting -> unlock code & broadcast to everyone!
+      setIsStudentPresenting(true);
+      setStudentViewOnly(false);
+      setActivePresenterName(currentUser.username);
+      setActivePresenterSessionId(currentUser.sessionId);
+      classroomSync.broadcastPresenterChange(currentUser.sessionId, currentUser.username, 'student');
+      const codeEl = document.getElementById('code') as HTMLTextAreaElement;
+      if (codeEl) {
+        classroomSync.broadcastCodeChange(codeEl.value);
+      }
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `🚀 <b>Live Coding Stage Active:</b> You are now live! Any code you write, run, or step will mirror live on everyone's screen.`;
+      }
+    }
+  };
+
+  // Teacher takes back presentation stage
+  const handleTakeBackStage = () => {
+    if (!currentUser || currentUser.role !== 'teacher') return;
+    setActivePresenterName(null);
+    setActivePresenterSessionId(null);
+    classroomSync.broadcastPresenterChange(currentUser.sessionId, currentUser.username, 'teacher');
+    const sayEl = document.getElementById('say');
+    if (sayEl) {
+      sayEl.innerHTML = `👑 <b>Stage Returned to Teacher:</b> You have taken back the presentation stage.`;
+    }
+  };
+
+  // Teacher Quick Button: Close both mic and camera with 1 click
+  const handleCloseBothMedia = () => {
+    if (mediaStream) {
+      mediaStream.getVideoTracks().forEach((t) => (t.enabled = false));
+      mediaStream.getAudioTracks().forEach((t) => (t.enabled = false));
+    }
+    setCameraActive(false);
+    setMicActive(false);
+    classroomSync.updateMediaStatus(false, false);
+    const sayEl = document.getElementById('say');
+    if (sayEl) {
+      sayEl.innerHTML = `🔇 <b>Camera & Microphone Closed:</b> Both camera and microphone turned off.`;
+    }
+  };
+
+  // Teacher Quick Button: Remotely mute all students
+  const handleTeacherMuteAllStudents = () => {
+    classroomSync.broadcastRemoteMediaControl('both', false);
+    const sayEl = document.getElementById('say');
+    if (sayEl) {
+      sayEl.innerHTML = `🔇 <b>Muted All Students:</b> Signal sent to turn off all students' microphones & cameras.`;
+    }
+  };
+
+  // Camera recording toggle: record camera video & audio session with automatic download
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      // Stop recording
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        mediaRecorderRef.current.stop();
+      }
+      if (recordingTimerRef.current) {
+        clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+      }
+      setIsRecording(false);
+    } else {
+      // Start recording
+      try {
+        let streamToRecord = mediaStream;
+        if (!streamToRecord || streamToRecord.getTracks().length === 0) {
+          streamToRecord = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: true,
+          });
+          setMediaStream(streamToRecord);
+          setCameraActive(true);
+          setMicActive(true);
+          classroomSync.updateMediaStatus(true, true);
+        }
+
+        recordedChunksRef.current = [];
+
+        const mimeTypes = [
+          'video/webm;codecs=vp9,opus',
+          'video/webm;codecs=vp8,opus',
+          'video/webm',
+          'video/mp4',
+        ];
+        const supportedType = mimeTypes.find((t) => MediaRecorder.isTypeSupported(t)) || '';
+        const options = supportedType ? { mimeType: supportedType } : undefined;
+        const recorder = new MediaRecorder(streamToRecord, options);
+        mediaRecorderRef.current = recorder;
+
+        recorder.ondataavailable = (e) => {
+          if (e.data && e.data.size > 0) {
+            recordedChunksRef.current.push(e.data);
+          }
+        };
+
+        recorder.onstop = () => {
+          const finalType = supportedType || 'video/webm';
+          const blob = new Blob(recordedChunksRef.current, { type: finalType });
+          if (blob.size === 0) return;
+          const url = URL.createObjectURL(blob);
+          const dateStr = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+          const filename = `classroom-cam-${dateStr}.webm`;
+
+          // Automatically download video file
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+
+          // Show recording playback modal
+          setRecordedVideoModal({
+            url,
+            blob,
+            filename,
+            durationStr: recordingDurationStrRef.current,
+            sizeMb: (blob.size / (1024 * 1024)).toFixed(2),
+          });
+
+          const sayEl = document.getElementById('say');
+          if (sayEl) {
+            sayEl.innerHTML = `🎥 <b>Camera Recording Saved:</b> Video downloaded (${recordingDurationStrRef.current}, ${(blob.size / (1024 * 1024)).toFixed(2)} MB)!`;
+          }
+        };
+
+        recorder.start(1000);
+        setIsRecording(true);
+        setRecordingDuration(0);
+        setRecordingDurationStr('00:00');
+        recordingDurationStrRef.current = '00:00';
+
+        recordingTimerRef.current = setInterval(() => {
+          setRecordingDuration((prev) => {
+            const next = prev + 1;
+            const m = Math.floor(next / 60);
+            const s = next % 60;
+            const pad = (n: number) => n.toString().padStart(2, '0');
+            const str = `${pad(m)}:${pad(s)}`;
+            setRecordingDurationStr(str);
+            recordingDurationStrRef.current = str;
+            return next;
+          });
+        }, 1000);
+
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `🔴 <b>Camera Recording Started:</b> Audio & Video is now recording live. Click REC again to stop & save video.`;
+        }
+      } catch (err) {
+        console.error('Camera recording error:', err);
+        const sayEl = document.getElementById('say');
+        if (sayEl) {
+          sayEl.innerHTML = `⚠️ <b>Recording Error:</b> Camera / microphone permission needed for recording.`;
+        }
+      }
+    }
   };
 
   const handleLogout = () => {
@@ -2516,8 +2817,9 @@ export default function App() {
         exSelect.append(o);
       });
       exSelect.onchange = () => {
-        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
-          say_('👁️ <b>View Only Mode:</b> Teacher controls curriculum example selection.');
+        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
+        if (isStudentLocked) {
+          say_('👁️ <b>View Only Mode:</b> Curriculum examples controlled by active presenter. Click <b>"Code & Visualize for Everyone"</b> above to take the stage!');
           return;
         }
         const i = exSelect.value;
@@ -2529,12 +2831,12 @@ export default function App() {
         drawGut();
         say_('**Goal:** ' + U[+i][1]);
 
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'select_example',
             exampleIndex: i,
             code: code.value,
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2731,15 +3033,16 @@ export default function App() {
     const runBtn = $('#run');
     if (runBtn) {
       runBtn.onclick = () => {
-        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
-          say_('👁️ <b>View Screen Only:</b> You are watching the Teacher\'s screen live. Teacher controls execution.');
+        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
+        if (isStudentLocked) {
+          say_('👁️ <b>View Screen Only:</b> You are following the live broadcast. Click <b>"Code & Visualize for Everyone"</b> above to take the stage and code live!');
           return;
         }
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'run',
             code: code.value,
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2780,10 +3083,10 @@ export default function App() {
       clrBtn.onclick = () => {
         screen.innerHTML = '';
         curSpan = null;
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'clear_output',
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2793,15 +3096,16 @@ export default function App() {
     const stepBtn = $('#step');
     if (stepBtn) {
       stepBtn.onclick = () => {
-        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
-          say_('👁️ <b>View Screen Only:</b> Stepping is controlled by the teacher.');
+        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
+        if (isStudentLocked) {
+          say_('👁️ <b>View Screen Only:</b> Stepping is controlled by the active presenter. Click <b>"Code & Visualize for Everyone"</b> above to take the stage!');
           return;
         }
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'step',
             code: code.value,
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2817,14 +3121,15 @@ export default function App() {
     const resetBtn = $('#reset');
     if (resetBtn) {
       resetBtn.onclick = () => {
-        if (currentUserRef.current?.role === 'student' && studentViewOnlyRef.current) {
-          say_('👁️ <b>View Screen Only:</b> Controlled by teacher.');
+        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
+        if (isStudentLocked) {
+          say_('👁️ <b>View Screen Only:</b> Controlled by active presenter.');
           return;
         }
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'reset',
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2835,11 +3140,11 @@ export default function App() {
     const spdInput = $('#spd') as HTMLInputElement;
     if (spdInput) {
       spdInput.oninput = () => {
-        if (currentUserRef.current?.role === 'teacher') {
+        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
           classroomSync.broadcastTeacherAction({
             type: 'speed_change',
             speed: +spdInput.value,
-            teacherName: currentUserRef.current.username,
+            teacherName: currentUserRef.current?.username || 'Presenter',
             timestamp: Date.now(),
           });
         }
@@ -2871,7 +3176,7 @@ export default function App() {
         // ignore
       }
 
-      if (currentUserRef.current?.role === 'teacher') {
+      if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
         classroomSync.broadcastCodeChange(code.value);
       }
     };
@@ -3121,6 +3426,7 @@ export default function App() {
   };
 
   const isStudent = currentUser?.role === 'student';
+  const isTeacher = currentUser?.role === 'teacher';
 
   return (
     <>
@@ -3129,7 +3435,8 @@ export default function App() {
       )}
 
       <div ref={containerRef} className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}>
-        {currentUser && (
+        {/* Main Classroom Header Bar: can be hidden with hide button for best visuals */}
+        {currentUser && !isHeaderHidden && (
           <ClassroomHeaderBar
             currentUser={currentUser}
             peers={peers}
@@ -3137,6 +3444,8 @@ export default function App() {
             micActive={micActive}
             onToggleCamera={handleToggleCamera}
             onToggleMic={handleToggleMic}
+            onCloseBothMedia={handleCloseBothMedia}
+            onTeacherMuteAllStudents={handleTeacherMuteAllStudents}
             onBroadcastCode={handleTeacherBroadcast}
             onLoadTeacherCode={handleLoadTeacherCode}
             teacherHasNewCode={teacherHasNewCode}
@@ -3150,17 +3459,152 @@ export default function App() {
             latestTeacherActionNotice={latestTeacherActionNotice}
             onToggleDashboard={() => setIsStudentDashboardOpen((prev) => !prev)}
             isDashboardOpen={isStudentDashboardOpen}
+            onHideHeader={() => setIsHeaderHidden(true)}
+            isStudentPresenting={isStudentPresenting}
+            onToggleStudentPresenting={handleToggleStudentPresenting}
+            isOpenCodingEnabled={isOpenCodingEnabled}
+            onToggleOpenCoding={() => setIsOpenCodingEnabled((prev) => !prev)}
+            activePresenterName={activePresenterName}
+            isRecording={isRecording}
+            recordingDurationStr={recordingDurationStr}
+            onToggleRecording={handleToggleRecording}
           />
         )}
 
-        {/* Professional Student View Screen Only & Active Stats Banner */}
-        {isStudent && studentViewOnly && (
+        {/* Floating Quick Navbar Control when header is hidden (For Best Visuals) */}
+        {currentUser && isHeaderHidden && (
+          <div className="fixed top-2.5 right-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-[#0b1328]/95 backdrop-blur-md border border-slate-700/80 px-2.5 sm:px-3 py-1.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 text-xs">
+            <button
+              type="button"
+              onClick={() => setIsHeaderHidden(false)}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold shadow-sm transition-all"
+              title="Show Header Navbar with all classroom controls (Shortcut: Press H or click)"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Show Navbar</span>
+            </button>
+
+            {/* Quick Camera Recording Button */}
+            {isRecording ? (
+              <button
+                type="button"
+                onClick={handleToggleRecording}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold animate-pulse text-[11px]"
+                title={`Recording in progress (${recordingDurationStr}) — Click to stop & save video`}
+              >
+                <Square className="w-3 h-3 fill-current" />
+                <span>REC {recordingDurationStr}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleToggleRecording}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 text-rose-400 text-[11px] font-semibold border border-rose-500/30"
+                title="Record camera video & audio session"
+              >
+                <Circle className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                <span>Rec Cam</span>
+              </button>
+            )}
+
+            {/* Quick Mic toggle */}
+            <button
+              type="button"
+              onClick={handleToggleMic}
+              className={`p-1.5 rounded-full border text-xs transition-colors ${
+                micActive ? 'bg-slate-800 text-emerald-400 border-slate-700' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              }`}
+              title={micActive ? 'Close Microphone' : 'Turn Microphone On'}
+            >
+              {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Quick Cam toggle */}
+            <button
+              type="button"
+              onClick={handleToggleCamera}
+              className={`p-1.5 rounded-full border text-xs transition-colors ${
+                cameraActive ? 'bg-slate-800 text-emerald-400 border-slate-700' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              }`}
+              title={cameraActive ? 'Close Camera' : 'Turn Camera On'}
+            >
+              {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Quick Student Coding Toggle */}
+            {isStudent && (
+              <button
+                type="button"
+                onClick={handleToggleStudentPresenting}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shadow transition-all ${
+                  isStudentPresenting
+                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                }`}
+                title={isStudentPresenting ? 'Stop sharing stage' : 'Code & Visualize to Everyone'}
+              >
+                <Code2 className="w-3 h-3" />
+                <span>{isStudentPresenting ? 'Live' : 'Code'}</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Live Presenter Stage Banner: Shown when a student or teacher is live presenting */}
+        {activePresenterName && !isHeaderHidden && (
+          <div className="bg-[#0b192e] border-b border-emerald-500/40 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 shadow-md z-20 flex-wrap gap-2 animate-in fade-in">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
+              <Radio className="w-4 h-4 text-emerald-400 animate-spin flex-shrink-0" />
+              <span className="font-bold text-emerald-300">
+                {isStudentPresenting
+                  ? 'You are Live Presenting: Any code you write, run, or step is mirrored to everyone!'
+                  : `Student ${activePresenterName} is Live Coding & Visualizing for Everyone`}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {isStudentPresenting ? (
+                <button
+                  type="button"
+                  onClick={handleToggleStudentPresenting}
+                  className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-transform active:scale-95"
+                >
+                  Stop Sharing Stage
+                </button>
+              ) : isTeacher ? (
+                <button
+                  type="button"
+                  onClick={handleTakeBackStage}
+                  className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-transform active:scale-95"
+                >
+                  Take Back Stage to Teacher
+                </button>
+              ) : null}
+            </div>
+          </div>
+        )}
+
+        {/* Professional Student View Screen Only & Active Stats Banner (when not presenting) */}
+        {isStudent && studentViewOnly && !isStudentPresenting && !activePresenterName && !isHeaderHidden && (
           <div className="bg-[#0b1328] border-b border-sky-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 shadow-sm z-20 flex-wrap gap-2">
-            <div className="flex items-center gap-2.5 overflow-hidden">
+            <div className="flex items-center gap-2.5 overflow-hidden flex-wrap">
               <div className="flex items-center gap-1.5 text-sky-300 font-bold">
                 <Eye className="w-3.5 h-3.5 animate-pulse text-sky-400" />
                 <span>View Screen Only</span>
               </div>
+
+              {/* The User-Requested Button: Any student can code and visualize for everyone! */}
+              <button
+                type="button"
+                onClick={handleToggleStudentPresenting}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md animate-pulse transition-all active:scale-95 border border-emerald-400/40"
+                title="Click to unlock code editor: any code you write and run/step will mirror live on everyone's screen!"
+              >
+                <Code2 className="w-3.5 h-3.5" />
+                <span>Code & Visualize to Everyone</span>
+              </button>
+
               <span className="text-slate-700 hidden sm:inline">|</span>
               <div className="flex items-center gap-1.5 text-slate-300">
                 <Crown className="w-3 h-3 text-amber-400" />
@@ -3214,17 +3658,29 @@ export default function App() {
       {/* Top Header & Actions */}
       <div className="tb">
         <b>Python Studio</b>
-        <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly}>
+        <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly && !isStudentPresenting}>
           <option value="">Curriculum Examples</option>
         </select>
-        <button className={`go ${isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''}`} id="run" title={isStudent && studentViewOnly ? 'View Screen Only: Run is controlled by teacher' : 'Run code'}>
-          Run {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
+        <button
+          className={`go ${isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}`}
+          id="run"
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Click "Code & Visualize" to code' : 'Run code'}
+        >
+          Run {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
         </button>
-        <button id="step" className={isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''} title={isStudent && studentViewOnly ? 'View Screen Only: Step is controlled by teacher' : 'Step forward'}>
-          Step {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
+        <button
+          id="step"
+          className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Step forward' : 'Step forward'}
+        >
+          Step {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
         </button>
-        <button id="reset" className={isStudent && studentViewOnly ? 'view-only-btn-disabled' : ''} title={isStudent && studentViewOnly ? 'View Screen Only: Reset is controlled by teacher' : 'Reset execution'}>
-          Reset {isStudent && studentViewOnly && <span className="view-only-badge">Teacher</span>}
+        <button
+          id="reset"
+          className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Reset' : 'Reset execution'}
+        >
+          Reset {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
         </button>
         <button
           type="button"
@@ -3233,6 +3689,14 @@ export default function App() {
           title="Toggle Hideable Scrollbars: hide or show scrollbars across the codebase"
         >
           {hideScrollbars ? 'Scrollbar: Hidden' : 'Scrollbar: Visible'}
+        </button>
+        <button
+          type="button"
+          className={`tb-toggle-btn ${isHeaderHidden ? 'active' : ''}`}
+          onClick={() => setIsHeaderHidden((prev) => !prev)}
+          title="Toggle Header Navbar: hide or show top header navbar for best visual space (Shortcut: Press H)"
+        >
+          {isHeaderHidden ? 'Navbar: Hidden' : 'Hide Navbar'}
         </button>
         <label className="ck">
           <input type="checkbox" id="pr" /> Predict Output
@@ -3251,6 +3715,21 @@ export default function App() {
         <aside className="edp">
           <div className="tab-bar">
             <div className="tab">main.py</div>
+            {isStudent && (
+              <button
+                type="button"
+                onClick={handleToggleStudentPresenting}
+                className={`flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold shadow-sm transition-all ${
+                  isStudentPresenting
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-1 ring-amber-400'
+                    : 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
+                }`}
+                title="When pressed, you can code and visualize for everyone!"
+              >
+                <Code2 className="w-3 h-3" />
+                <span>{isStudentPresenting ? 'Stop Sharing' : 'Code & Visualize for Everyone'}</span>
+              </button>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <button
                 type="button"
@@ -3408,9 +3887,9 @@ export default function App() {
               spellCheck={false}
               wrap="off"
               aria-label="Python code editor"
-              readOnly={isStudent && studentViewOnly}
-              className={isStudent && studentViewOnly ? 'view-only-textarea' : ''}
-              title={isStudent && studentViewOnly ? "View Screen Only: Live following Teacher" : "Python code editor"}
+              readOnly={isStudent && studentViewOnly && !isStudentPresenting}
+              className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-textarea' : ''}
+              title={isStudent && studentViewOnly && !isStudentPresenting ? "View Screen Only: Live following Teacher" : "Python code editor"}
             />
           </div>
         </aside>
@@ -3584,6 +4063,68 @@ export default function App() {
           onClose={() => setIsStudentDashboardOpen(false)}
           onOpenConversation={() => setIsConversationOpen(true)}
         />
+      )}
+
+      {/* Camera Recording Saved / Review Modal */}
+      {recordedVideoModal && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl p-5 max-w-lg w-full shadow-2xl space-y-4 text-left">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                  <Video className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-100">Camera Recording Saved</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Duration: {recordedVideoModal.durationStr} · Size: {recordedVideoModal.sizeMb} MB
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRecordedVideoModal(null)}
+                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
+                title="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="rounded-xl overflow-hidden bg-black border border-slate-800">
+              <video
+                src={recordedVideoModal.url}
+                controls
+                autoPlay
+                className="w-full max-h-64 object-contain"
+              />
+            </div>
+
+            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
+              <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono truncate max-w-[200px]">
+                <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                <span className="truncate">{recordedVideoModal.filename}</span>
+              </span>
+              <div className="flex items-center gap-2">
+                <a
+                  href={recordedVideoModal.url}
+                  download={recordedVideoModal.filename}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Again</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setRecordedVideoModal(null)}
+                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   </>

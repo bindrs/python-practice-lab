@@ -23,7 +23,9 @@ export type BroadcastAction =
   | 'chat_message'
   | 'webrtc_signal'
   | 'media_toggle'
-  | 'raise_hand';
+  | 'raise_hand'
+  | 'presenter_change'
+  | 'remote_media_control';
 
 export interface TeacherLiveAction {
   type:
@@ -73,4 +75,9 @@ export interface BroadcastMessage {
   teacherAction?: TeacherLiveAction;
   chatMessage?: ChatMessage;
   webrtcSignal?: WebRTCSignalData;
+  presenterSessionId?: string;
+  presenterName?: string;
+  presenterRole?: UserRole;
+  remoteMediaTarget?: 'mic' | 'camera' | 'both';
+  remoteMediaState?: boolean;
 }

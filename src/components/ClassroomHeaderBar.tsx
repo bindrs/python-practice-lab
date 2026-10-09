@@ -23,7 +23,12 @@ import {
   Database,
   MessageSquare,
   Eye,
+  EyeOff,
   Activity,
+  Code2,
+  Square,
+  Circle,
+  VolumeX,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -34,6 +39,7 @@ interface ClassroomHeaderBarProps {
   micActive: boolean;
   onToggleCamera: () => void;
   onToggleMic: () => void;
+  onCloseBothMedia?: () => void;
   onBroadcastCode: () => void;
   onLoadTeacherCode: () => void;
   teacherHasNewCode: boolean;
@@ -47,6 +53,17 @@ interface ClassroomHeaderBarProps {
   latestTeacherActionNotice?: string;
   onToggleDashboard?: () => void;
   isDashboardOpen?: boolean;
+  // User requested features:
+  onHideHeader?: () => void;
+  isStudentPresenting?: boolean;
+  onToggleStudentPresenting?: () => void;
+  isOpenCodingEnabled?: boolean;
+  onToggleOpenCoding?: () => void;
+  activePresenterName?: string | null;
+  onTeacherMuteAllStudents?: () => void;
+  isRecording?: boolean;
+  recordingDurationStr?: string;
+  onToggleRecording?: () => void;
 }
 
 export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
@@ -56,6 +73,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   micActive,
   onToggleCamera,
   onToggleMic,
+  onCloseBothMedia,
   onBroadcastCode,
   onLoadTeacherCode,
   teacherHasNewCode,
@@ -69,6 +87,16 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   latestTeacherActionNotice,
   onToggleDashboard,
   isDashboardOpen,
+  onHideHeader,
+  isStudentPresenting = false,
+  onToggleStudentPresenting,
+  isOpenCodingEnabled = true,
+  onToggleOpenCoding,
+  activePresenterName,
+  onTeacherMuteAllStudents,
+  isRecording = false,
+  recordingDurationStr = '00:00',
+  onToggleRecording,
 }) => {
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
@@ -237,19 +265,55 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Center: Live Screen Broadcast & View Screen Only Mode Indicators */}
-      <div className="flex items-center gap-2">
+      {/* Center: Live Screen Broadcast & Student Code / Presenter Controls */}
+      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
         {/* TEACHER CONTROLS */}
         {isTeacher ? (
-          <div className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-xs animate-pulse"
-              title="All actions performed by you (typing code, Run, Step, Reset, switching tabs, selecting examples) are automatically mirrored on connected students' screens live in real-time"
-            >
-              <Radio className="w-3.5 h-3.5 text-rose-400" />
-              <span>Broadcasting Screen Live</span>
-              <span className="hidden lg:inline text-[10px] text-rose-400/80">({studentsCount} student{studentsCount === 1 ? '' : 's'} viewing)</span>
-            </div>
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* If a student is currently presenting */}
+            {activePresenterName ? (
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold animate-pulse shadow-sm">
+                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
+                <span>Student <b>{activePresenterName}</b> is Live</span>
+                {onToggleStudentPresenting && (
+                  <button
+                    type="button"
+                    onClick={onToggleStudentPresenting}
+                    className="ml-1 px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-sm transition-transform active:scale-95"
+                    title="Take back presenter stage to Teacher"
+                  >
+                    Take Back Stage
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-xs animate-pulse"
+                title="All actions performed by you (typing code, Run, Step, Reset, switching tabs, selecting examples) are automatically mirrored on connected students' screens live in real-time"
+              >
+                <Radio className="w-3.5 h-3.5 text-rose-400" />
+                <span>Broadcasting Screen Live</span>
+                <span className="hidden lg:inline text-[10px] text-rose-400/80">({studentsCount} student{studentsCount === 1 ? '' : 's'})</span>
+              </div>
+            )}
+
+            {/* Teacher toggle: Allow Students to Code */}
+            {onToggleOpenCoding && (
+              <button
+                type="button"
+                onClick={onToggleOpenCoding}
+                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
+                  isOpenCodingEnabled
+                    ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
+                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+                title="Toggle whether any student can press 'Code & Visualize to Everyone' and present to the whole class"
+              >
+                <Code2 className="w-3.5 h-3.5 text-teal-400" />
+                <span className="hidden xl:inline">Student Coding:</span>
+                <span className="font-bold">{isOpenCodingEnabled ? 'Allowed' : 'Locked'}</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -275,16 +339,53 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
             </button>
           </div>
         ) : (
-          /* STUDENT CONTROLS: Strict View Screen Only Mode following Teacher */
-          <div className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-sky-500/20 text-sky-200 border border-sky-500/40 text-[11px] font-bold shadow-xs"
-              title="You are in View Screen Only mode. All actions performed by the teacher (Run, Step, Reset, Code editing, Tab switches) are mirroring live here."
-            >
-              <Eye className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-              <span>View Screen Only</span>
-              <span className="hidden sm:inline text-sky-300 font-normal">· Following Teacher</span>
-            </div>
+          /* STUDENT CONTROLS: "Code & Visualize to Everyone" button */
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+            {/* The user-requested button: Any student can code and visualize to everyone! */}
+            {onToggleStudentPresenting && isOpenCodingEnabled && (
+              <button
+                type="button"
+                onClick={onToggleStudentPresenting}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all shadow-md ${
+                  isStudentPresenting
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 shadow-amber-500/30 ring-2 ring-amber-400/50'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/40 shadow-emerald-950/50 animate-pulse'
+                }`}
+                title={
+                  isStudentPresenting
+                    ? 'You are currently broadcasting your code & actions to everyone! Click to stop.'
+                    : 'Click to unlock code editor: any code you write and run/step will mirror live on everyone\'s screen!'
+                }
+              >
+                {isStudentPresenting ? (
+                  <>
+                    <Radio className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                    <span>Stop Sharing Stage</span>
+                  </>
+                ) : (
+                  <>
+                    <Code2 className="w-3.5 h-3.5" />
+                    <span>Code & Visualize to Everyone</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {!isStudentPresenting ? (
+              <div
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-200 border border-sky-500/40 text-[11px] font-bold shadow-xs"
+                title="You are in View Screen Only mode. All actions performed by the teacher or active presenter mirror live here."
+              >
+                <Eye className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
+                <span>View Screen Only</span>
+                <span className="hidden sm:inline text-sky-300 font-normal">· Following {activePresenterName || 'Teacher'}</span>
+              </div>
+            ) : (
+              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                Live Presenter (Class Seeing Your Code)
+              </span>
+            )}
 
             {latestTeacherActionNotice && (
               <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono animate-in fade-in">
@@ -296,14 +397,46 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         )}
       </div>
 
-      {/* Right: Conversation, Camera / Mic and Video Tiles Toggle */}
-      <div className="flex items-center gap-2">
+      {/* Right: Camera Recording, AV Controls, Dashboard, Hide Header */}
+      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
+        {/* User Requested: Camera Recording Button */}
+        {onToggleRecording && (
+          <button
+            type="button"
+            onClick={onToggleRecording}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold transition-all shadow-sm ${
+              isRecording
+                ? 'bg-rose-600 hover:bg-rose-500 text-white animate-pulse ring-2 ring-rose-400/50'
+                : 'bg-slate-900 hover:bg-slate-800 text-rose-400 hover:text-rose-300 border border-rose-500/30'
+            }`}
+            title={
+              isRecording
+                ? `Recording in progress (${recordingDurationStr}) — Click to stop, save & download video`
+                : 'Record camera video & audio session with 1-click download'
+            }
+          >
+            {isRecording ? (
+              <>
+                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
+                <Square className="w-3 h-3 fill-current" />
+                <span>REC {recordingDurationStr}</span>
+              </>
+            ) : (
+              <>
+                <Circle className="w-3 h-3 fill-rose-500 text-rose-500" />
+                <Video className="w-3.5 h-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Record Cam</span>
+              </>
+            )}
+          </button>
+        )}
+
         {/* Student Classroom Dashboard Toggle */}
         {!isTeacher && onToggleDashboard && (
           <button
             type="button"
             onClick={onToggleDashboard}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
               isDashboardOpen
                 ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold'
                 : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30 hover:border-emerald-500/50'
@@ -311,7 +444,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
             title="Open Student Classroom Dashboard (Live session duration, active teacher & classroom statistics)"
           >
             <Activity className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>Dashboard</span>
+            <span className="hidden md:inline">Dashboard</span>
           </button>
         )}
 
@@ -319,7 +452,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         <button
           type="button"
           onClick={onToggleConversation}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold border transition-all ${
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
             isConversationOpen
               ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20 font-bold'
               : 'bg-slate-900 hover:bg-slate-800 text-sky-300 border-sky-500/30 hover:border-sky-500/50'
@@ -327,7 +460,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           title="Open Classroom Conversation (Voice Call, Chat, Questions & Hand Raise)"
         >
           <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
-          <span>Conversation & Audio</span>
+          <span className="hidden md:inline">Conversation</span>
         </button>
 
         {/* Toggle Classroom Cameras Tile */}
@@ -342,54 +475,80 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           title="Toggle live camera and avatar tiles"
         >
           <Video className="w-3.5 h-3.5 text-sky-400" />
-          <span className="hidden sm:inline">Cameras</span>
+          <span className="hidden md:inline">Cameras</span>
         </button>
 
-        {/* Mic Toggle */}
+        {/* Mic Toggle (Teacher / Student can close mic) */}
         <button
           type="button"
           onClick={onToggleMic}
           className={`p-1.5 rounded-md border transition-colors ${
             micActive
               ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
-              : 'bg-red-500/10 text-red-400 border-red-500/30'
+              : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-xs'
           }`}
-          title={micActive ? 'Mute Microphone' : 'Unmute Microphone'}
+          title={micActive ? 'Close Microphone' : 'Turn Microphone On'}
         >
           {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Camera Toggle */}
+        {/* Camera Toggle (Teacher / Student can close camera) */}
         <button
           type="button"
           onClick={onToggleCamera}
           className={`p-1.5 rounded-md border transition-colors ${
             cameraActive
               ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
-              : 'bg-red-500/10 text-red-400 border-red-500/30'
+              : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-xs'
           }`}
-          title={cameraActive ? 'Turn Camera Off' : 'Turn Camera On'}
+          title={cameraActive ? 'Close Camera' : 'Turn Camera On'}
         >
           {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
         </button>
 
-        {/* InsForge Backend Status Badge */}
-        <div
-          className="hidden xl:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-500/25 text-[10px] font-mono cursor-default"
-          title="Connected to InsForge Backend Database (python visuler: 6d36a9cc-af0c-448d-8ccb-d63a3721632f)"
-        >
-          <Database className="w-3 h-3 text-indigo-400 flex-shrink-0" />
-          <span>InsForge DB</span>
-        </div>
+        {/* Teacher Quick Button: Close Both Mic & Camera */}
+        {isTeacher && onCloseBothMedia && (
+          <button
+            type="button"
+            onClick={onCloseBothMedia}
+            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+              cameraActive || micActive
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-xs'
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+            }`}
+            title="Turn off both your camera and microphone with 1 click"
+          >
+            <VideoOff className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden sm:inline">Close Mic & Cam</span>
+            <span className="sm:hidden">Close AV</span>
+          </button>
+        )}
 
-        {/* Session Persistence Badge */}
-        <div
-          className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 text-[10px] font-mono cursor-default"
-          title="Session remains active even after browser refresh. Session only ends when you click 'End Session'."
-        >
-          <ShieldCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
-          <span>Active (Refresh-Safe)</span>
-        </div>
+        {/* Teacher Quick Button: Mute All Students */}
+        {isTeacher && onTeacherMuteAllStudents && (
+          <button
+            type="button"
+            onClick={onTeacherMuteAllStudents}
+            className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-900 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-slate-800 hover:border-rose-500/40 text-[11px] font-semibold transition-colors"
+            title="Remotely mute all students' microphones and turn off their cameras"
+          >
+            <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+            <span className="hidden md:inline">Mute Students</span>
+          </button>
+        )}
+
+        {/* User Requested: Hide Header Navbar Button for Best Visuals */}
+        {onHideHeader && (
+          <button
+            type="button"
+            onClick={onHideHeader}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-750 text-xs font-bold transition-all shadow-sm hover:border-slate-600"
+            title="Hide Header Navbar for maximum visualizer screen space (can be restored anytime with 1 click)"
+          >
+            <EyeOff className="w-3.5 h-3.5 text-sky-400" />
+            <span className="hidden xs:inline">Hide Navbar</span>
+          </button>
+        )}
 
         {/* Dedicated Session End Button */}
         <button
@@ -399,7 +558,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           title="End Session: Click to permanently end this classroom session (refreshing page will not end session)"
         >
           <Power className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
-          <span>End Session</span>
+          <span className="hidden sm:inline">End Session</span>
         </button>
       </div>
 
