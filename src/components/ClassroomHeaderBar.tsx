@@ -17,6 +17,9 @@ import {
   CheckCircle,
   Copy,
   Check,
+  Power,
+  AlertTriangle,
+  ShieldCheck,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -56,6 +59,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
+  const [showEndSessionConfirm, setShowEndSessionConfirm] = useState(false);
 
   const isTeacher = currentUser.role === 'teacher';
   const teachersCount = peers.filter((p) => p.role === 'teacher').length;
@@ -325,17 +329,89 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
         </button>
 
-        {/* Switch Role / Exit */}
+        {/* Session Persistence Badge */}
+        <div
+          className="hidden lg:flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 text-[10px] font-mono cursor-default"
+          title="Session remains active even after browser refresh. Session only ends when you click 'End Session'."
+        >
+          <ShieldCheck className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+          <span>Active (Refresh-Safe)</span>
+        </div>
+
+        {/* Dedicated Session End Button */}
         <button
           type="button"
-          onClick={onLogout}
-          className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-900 hover:bg-red-950/40 text-slate-400 hover:text-red-400 border border-slate-800 transition-colors"
-          title="Exit Classroom / Switch Role"
+          onClick={() => setShowEndSessionConfirm(true)}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all shadow-sm shadow-rose-950/40 min-h-[28px]"
+          title="End Session: Click to permanently end this classroom session (refreshing page will not end session)"
         >
-          <LogOut className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Switch</span>
+          <Power className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+          <span>End Session</span>
         </button>
       </div>
+
+      {/* Explicit Session End Confirmation Modal */}
+      {showEndSessionConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-[#0f172a] border border-rose-500/40 rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-100">End Classroom Session?</h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Jab tak aap yeh button press nahi karenge, session end nahi hoga — chahe aap page refresh bhi kar lein.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs space-y-2 text-slate-300">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Current Role:</span>
+                <span className="font-bold text-slate-200 capitalize">{currentUser.role} ({currentUser.username})</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Class Code:</span>
+                <span className="font-mono font-bold text-sky-400">{currentUser.classCode}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-400">Session ID:</span>
+                <span className="font-mono text-slate-300">{currentUser.sessionId}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-800 text-[11px] text-emerald-400 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
+                <span>Page refresh karne par session active rehta hai.</span>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Are you sure you want to end this session now and return to the login screen?
+            </p>
+
+            <div className="flex items-center justify-end gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowEndSessionConfirm(false)}
+                className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
+              >
+                Cancel (Keep Session Active)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEndSessionConfirm(false);
+                  onLogout();
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-900/40 flex items-center gap-1.5"
+              >
+                <Power className="w-3.5 h-3.5" />
+                <span>Yes, End Session</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

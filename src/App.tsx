@@ -276,13 +276,40 @@ export default function App() {
   };
 
   const handleLogout = () => {
-    classroomSync.leave();
+    classroomSync.endSession();
     if (mediaStream) {
       mediaStream.getTracks().forEach((t) => t.stop());
       setMediaStream(null);
     }
     setCurrentUser(null);
+    const sayEl = document.getElementById('say');
+    if (sayEl) {
+      sayEl.innerHTML = `👋 <b>Session Ended:</b> You have explicitly ended your classroom session. Enter a class code or host a new session to reconnect.`;
+    }
   };
+
+  // Re-acquire media stream and announce restored session after page refresh
+  useEffect(() => {
+    if (currentUser) {
+      const sayEl = document.getElementById('say');
+      if (sayEl) {
+        sayEl.innerHTML = `🔄 <b>Session Active:</b> Reconnected to room (Class: <b>${currentUser.classCode}</b>). Session stays active across page refreshes until you click <b>"End Session"</b>.`;
+      }
+
+      if ((currentUser.cameraActive || currentUser.micActive) && !mediaStream) {
+        navigator.mediaDevices?.getUserMedia({
+          video: currentUser.cameraActive ? { facingMode: 'user' } : false,
+          audio: currentUser.micActive,
+        })
+          .then((stream) => {
+            setMediaStream(stream);
+          })
+          .catch((err) => {
+            console.log('Autorestore media permissions on reload:', err);
+          });
+      }
+    }
+  }, []);
 
   const handleLoginSuccess = (user: ClassroomUser, stream: MediaStream | null) => {
     classroomSync.initUser(user.role, user.username, user.classCode, user.cameraActive, user.micActive);
@@ -2553,6 +2580,14 @@ export default function App() {
     const handleInput = () => {
       updateHighlight();
       reset();
+      try {
+        const sid = sessionStorage.getItem('classroom_window_session_id');
+        if (sid) {
+          localStorage.setItem(`classroom_saved_code_${sid}`, code.value);
+        }
+      } catch {
+        // ignore
+      }
     };
 
     const handleScroll = () => {
@@ -2764,7 +2799,17 @@ export default function App() {
     code.addEventListener('scroll', handleScroll);
     code.addEventListener('keydown', handleKeydown);
 
-    code.value = DEFAULT;
+    let initialCode = DEFAULT;
+    try {
+      const sid = sessionStorage.getItem('classroom_window_session_id');
+      const saved = sid ? localStorage.getItem(`classroom_saved_code_${sid}`) : null;
+      if (saved !== null && saved !== undefined && saved.length > 0) {
+        initialCode = saved;
+      }
+    } catch {
+      // ignore
+    }
+    code.value = initialCode;
     updateHighlight();
     reset();
 

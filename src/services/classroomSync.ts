@@ -4,6 +4,8 @@ const CHANNEL_NAME = 'python_classroom_broadcast_v2';
 const STORAGE_PEERS_KEY = 'python_classroom_active_peers';
 const STORAGE_TEACHER_CODE_PREFIX = 'python_classroom_teacher_code_';
 const STORAGE_LAST_ACTIVE_CLASS_KEY = 'python_classroom_last_active_class';
+const STORAGE_PERSISTENT_SESSION_PREFIX = 'python_classroom_persistent_session_';
+const STORAGE_ACTIVE_SESSION_GLOBAL = 'python_classroom_active_persistent_session';
 
 export function getOrCreateWindowSessionId(): string {
   try {
@@ -63,10 +65,8 @@ export class ClassroomSyncService {
           this.notifyPeersListeners();
         }
       });
-
-      window.addEventListener('beforeunload', () => {
-        this.leave();
-      });
+      // NOTE: We intentionally DO NOT call endSession on beforeunload
+      // so the session stays active even when the user refreshes the page!
     }
   }
 
@@ -92,9 +92,13 @@ export class ClassroomSyncService {
       lastPing: Date.now(),
     };
 
-    // Store in sessionStorage
+    // Store in both sessionStorage and persistent localStorage so it survives refresh!
     try {
-      sessionStorage.setItem('classroom_user_profile', JSON.stringify(this.currentUser));
+      const dataStr = JSON.stringify(this.currentUser);
+      sessionStorage.setItem('classroom_user_profile', dataStr);
+      localStorage.setItem(`${STORAGE_PERSISTENT_SESSION_PREFIX}${sessionId}`, dataStr);
+      localStorage.setItem(STORAGE_ACTIVE_SESSION_GLOBAL, dataStr);
+
       if (role === 'teacher') {
         localStorage.setItem(
           STORAGE_LAST_ACTIVE_CLASS_KEY,
@@ -129,10 +133,35 @@ export class ClassroomSyncService {
   public getCurrentUser(): ClassroomUser | null {
     if (this.currentUser) return this.currentUser;
     try {
-      const stored = sessionStorage.getItem('classroom_user_profile');
+      // 1. Check window-specific sessionStorage
+      let stored = sessionStorage.getItem('classroom_user_profile');
+
+      // 2. If refreshed, check persistent session for this window's session ID
+      if (!stored) {
+        const sid = getOrCreateWindowSessionId();
+        stored = localStorage.getItem(`${STORAGE_PERSISTENT_SESSION_PREFIX}${sid}`);
+      }
+
+      // 3. Fallback to active persistent session
+      if (!stored) {
+        stored = localStorage.getItem(STORAGE_ACTIVE_SESSION_GLOBAL);
+      }
+
       if (stored) {
         this.currentUser = JSON.parse(stored);
-        return this.currentUser;
+        if (this.currentUser) {
+          this.currentUser.lastPing = Date.now();
+          this.upsertPeer(this.currentUser);
+          this.startHeartbeat();
+          // Broadcast to other tabs that this peer is still active after refresh
+          this.broadcast({
+            action: 'peer_join',
+            sender: this.currentUser,
+            classCode: this.currentUser.classCode,
+            timestamp: Date.now(),
+          });
+          return this.currentUser;
+        }
       }
     } catch {
       // ignore
@@ -145,8 +174,7 @@ export class ClassroomSyncService {
       const stored = localStorage.getItem(STORAGE_LAST_ACTIVE_CLASS_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Only consider valid within last 2 hours
-        if (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 60 * 1000) {
+        if (Date.now() - (parsed.timestamp || 0) < 4 * 60 * 60 * 1000) {
           return parsed;
         }
       }
@@ -163,7 +191,10 @@ export class ClassroomSyncService {
     this.currentUser.lastPing = Date.now();
 
     try {
-      sessionStorage.setItem('classroom_user_profile', JSON.stringify(this.currentUser));
+      const dataStr = JSON.stringify(this.currentUser);
+      sessionStorage.setItem('classroom_user_profile', dataStr);
+      localStorage.setItem(`${STORAGE_PERSISTENT_SESSION_PREFIX}${this.currentUser.sessionId}`, dataStr);
+      localStorage.setItem(STORAGE_ACTIVE_SESSION_GLOBAL, dataStr);
     } catch {
       // ignore
     }
@@ -242,10 +273,10 @@ export class ClassroomSyncService {
       if (!stored) return this.currentUser ? [this.currentUser] : [];
       const peers: ClassroomUser[] = JSON.parse(stored);
       const now = Date.now();
-      // Filter out stale peers (no ping in last 12 seconds)
-      const fresh = peers.filter((p) => now - (p.lastPing || 0) < 12000);
+      // 30 seconds threshold so page reloads do not prematurely drop peers
+      const fresh = peers.filter((p) => now - (p.lastPing || 0) < 30000);
 
-      // If user is currently in a classCode, filter only peers in that classCode!
+      // Filter only peers in the same classCode
       if (this.currentUser && this.currentUser.classCode) {
         return fresh.filter((p) => p.classCode === this.currentUser?.classCode);
       }
@@ -256,20 +287,33 @@ export class ClassroomSyncService {
     }
   }
 
-  public leave() {
+  /**
+   * ONLY called when the user explicitly clicks the "End Session" button!
+   * Until this button is pressed, the session never ends, even after page refresh.
+   */
+  public endSession() {
     if (this.heartbeatInterval) {
       clearInterval(this.heartbeatInterval);
       this.heartbeatInterval = null;
     }
 
     if (this.currentUser) {
+      const sid = this.currentUser.sessionId;
       this.broadcast({
         action: 'peer_leave',
         sender: this.currentUser,
         classCode: this.currentUser.classCode,
         timestamp: Date.now(),
       });
-      this.removePeer(this.currentUser.sessionId);
+      this.removePeer(sid);
+
+      try {
+        localStorage.removeItem(`${STORAGE_PERSISTENT_SESSION_PREFIX}${sid}`);
+        localStorage.removeItem(STORAGE_ACTIVE_SESSION_GLOBAL);
+        localStorage.removeItem(`classroom_saved_code_${sid}`);
+      } catch {
+        // ignore
+      }
     }
 
     try {
@@ -279,6 +323,13 @@ export class ClassroomSyncService {
     }
 
     this.currentUser = null;
+  }
+
+  /**
+   * Alias for endSession() to guarantee safe termination
+   */
+  public leave() {
+    this.endSession();
   }
 
   private broadcast(msg: BroadcastMessage) {
@@ -367,7 +418,7 @@ export class ClassroomSyncService {
       if (!stored) return;
       const peers: ClassroomUser[] = JSON.parse(stored);
       const now = Date.now();
-      const fresh = peers.filter((p) => now - (p.lastPing || 0) < 12000);
+      const fresh = peers.filter((p) => now - (p.lastPing || 0) < 30000);
       localStorage.setItem(STORAGE_PEERS_KEY, JSON.stringify(fresh));
       this.notifyPeersListeners();
     } catch {
