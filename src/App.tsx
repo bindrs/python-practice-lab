@@ -217,7 +217,7 @@ export default function App() {
     });
 
     // Initial check for latest teacher code
-    const latest = classroomSync.getLatestTeacherCode();
+    const latest = classroomSync.getLatestTeacherCode(currentUser?.classCode);
     if (latest && currentUser && currentUser.role === 'student') {
       setLatestTeacherCode(latest.code);
       setTeacherHasNewCode(true);
@@ -240,7 +240,7 @@ export default function App() {
   };
 
   const handleLoadTeacherCode = () => {
-    const latest = classroomSync.getLatestTeacherCode();
+    const latest = classroomSync.getLatestTeacherCode(currentUser?.classCode);
     if (latest && latest.code) {
       const codeEl = document.getElementById('code') as HTMLTextAreaElement;
       if (codeEl) {
@@ -285,7 +285,7 @@ export default function App() {
   };
 
   const handleLoginSuccess = (user: ClassroomUser, stream: MediaStream | null) => {
-    classroomSync.initUser(user.role, user.username, user.cameraActive, user.micActive);
+    classroomSync.initUser(user.role, user.username, user.classCode, user.cameraActive, user.micActive);
     setCurrentUser(user);
     if (stream) {
       setMediaStream(stream);
@@ -294,7 +294,7 @@ export default function App() {
     }
     setIsVideoTilesOpen(true);
     if (user.role === 'student') {
-      const latest = classroomSync.getLatestTeacherCode();
+      const latest = classroomSync.getLatestTeacherCode(user.classCode);
       if (latest && latest.code) {
         setLatestTeacherCode(latest.code);
         setTeacherHasNewCode(true);

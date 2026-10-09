@@ -15,6 +15,8 @@ import {
   ChevronDown,
   Sparkles,
   CheckCircle,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -53,6 +55,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
 }) => {
   const [showPeersDropdown, setShowPeersDropdown] = useState(false);
   const [broadcastSentAnim, setBroadcastSentAnim] = useState(false);
+  const [copiedCode, setCopiedCode] = useState(false);
 
   const isTeacher = currentUser.role === 'teacher';
   const teachersCount = peers.filter((p) => p.role === 'teacher').length;
@@ -64,30 +67,69 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
     setTimeout(() => setBroadcastSentAnim(false), 2000);
   };
 
+  const handleCopyClassCode = () => {
+    navigator.clipboard?.writeText(currentUser.classCode);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   const handleOpenNewStudentWindow = () => {
-    // Open in new window or tab
+    // Save active class to localStorage so new student tab immediately picks up this class code!
+    try {
+      localStorage.setItem(
+        'python_classroom_last_active_class',
+        JSON.stringify({
+          classCode: currentUser.classCode,
+          teacherName: currentUser.username,
+          timestamp: Date.now(),
+        })
+      );
+    } catch {
+      // ignore
+    }
     window.open(window.location.href, '_blank');
   };
 
   return (
-    <header className="bg-[#0b1120] border-b border-[#1e293b] px-3 py-1.5 flex items-center justify-between gap-3 text-xs flex-wrap z-30">
-      {/* Left: Role and User Badge */}
-      <div className="flex items-center gap-2">
+    <header className="bg-[#0b1120] border-b border-[#1e293b] px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-3 text-xs flex-wrap sm:flex-nowrap z-30">
+      {/* Left: Role, User Badge, and Class Code */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <div
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full font-bold text-[11px] shadow-sm ${
+          className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full font-bold text-[11px] shadow-sm max-w-[170px] sm:max-w-none ${
             isTeacher
               ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
               : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
           }`}
         >
-          {isTeacher ? <Crown className="w-3.5 h-3.5 text-amber-400" /> : <GraduationCap className="w-3.5 h-3.5 text-sky-400" />}
-          <span>{currentUser.username}</span>
-          <span className="text-[10px] opacity-75 font-mono">({isTeacher ? 'Teacher' : 'Student'})</span>
+          {isTeacher ? <Crown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> : <GraduationCap className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />}
+          <span className="truncate">{currentUser.username}</span>
+          <span className="text-[10px] opacity-75 font-mono hidden xs:inline">({isTeacher ? 'Teacher' : 'Student'})</span>
+        </div>
+
+        {/* Class Code Pill */}
+        <div
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[11px] font-bold border transition-colors ${
+            isTeacher
+              ? 'bg-amber-950/40 text-amber-300 border-amber-500/40'
+              : 'bg-sky-950/40 text-sky-300 border-sky-500/40'
+          }`}
+          title={isTeacher ? `Teacher's Class Code: Give this code (${currentUser.classCode}) to your students` : `Connected to Class Code: ${currentUser.classCode}`}
+        >
+          <span className="opacity-70 font-sans text-[10px]">Class:</span>
+          <span className="tracking-wider">{currentUser.classCode}</span>
+          <button
+            type="button"
+            onClick={handleCopyClassCode}
+            className="hover:text-white transition-colors"
+            title="Copy Class Code"
+          >
+            {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+          </button>
         </div>
 
         {/* Window Session ID */}
         <div
-          className="hidden sm:flex items-center gap-1 font-mono text-[10px] text-slate-400 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-md"
+          className="hidden md:flex items-center gap-1 font-mono text-[10px] text-slate-400 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-md"
           title="Unique Window Session ID"
         >
           <span className="opacity-60">ID:</span>

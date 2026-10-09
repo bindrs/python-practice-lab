@@ -47,8 +47,10 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-40 bg-[#0f172a]/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden transition-all duration-200 ${
-        isMinimized ? 'w-64 h-12' : 'w-80 md:w-96 max-h-[460px]'
+      className={`fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-40 bg-[#0f172a]/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-md overflow-hidden transition-all duration-200 ${
+        isMinimized
+          ? 'w-52 sm:w-64 h-11'
+          : 'w-[calc(100vw-20px)] max-w-sm sm:w-80 md:w-96 max-h-[460px]'
       }`}
     >
       {/* Header Bar */}

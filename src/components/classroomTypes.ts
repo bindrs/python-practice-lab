@@ -4,6 +4,7 @@ export interface ClassroomUser {
   sessionId: string;
   role: UserRole;
   username: string;
+  classCode: string;
   joinedAt: number;
   cameraActive: boolean;
   micActive: boolean;
@@ -21,10 +22,9 @@ export type BroadcastAction =
 export interface BroadcastMessage {
   action: BroadcastAction;
   sender: ClassroomUser;
+  classCode: string;
   targetSessionId?: string; // optional: unicast to specific student
   code?: string;
   timestamp: number;
   notes?: string;
 }
-
-export const TEACHER_MASTER_PIN = '2244244452665339';

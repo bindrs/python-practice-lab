@@ -1,8 +1,9 @@
 import { BroadcastMessage, ClassroomUser, UserRole } from '../components/classroomTypes';
 
-const CHANNEL_NAME = 'python_classroom_broadcast_v1';
+const CHANNEL_NAME = 'python_classroom_broadcast_v2';
 const STORAGE_PEERS_KEY = 'python_classroom_active_peers';
-const STORAGE_TEACHER_CODE_KEY = 'python_classroom_latest_teacher_code';
+const STORAGE_TEACHER_CODE_PREFIX = 'python_classroom_teacher_code_';
+const STORAGE_LAST_ACTIVE_CLASS_KEY = 'python_classroom_last_active_class';
 
 export function getOrCreateWindowSessionId(): string {
   try {
@@ -17,6 +18,11 @@ export function getOrCreateWindowSessionId(): string {
     const rand = Math.random().toString(36).substring(2, 7).toUpperCase();
     return `SES-${rand}`;
   }
+}
+
+export function generateRandomClassCode(): string {
+  const num = Math.floor(1000 + Math.random() * 9000);
+  return `PY-${num}`;
 }
 
 export function getRandomAvatarColor(): string {
@@ -64,22 +70,41 @@ export class ClassroomSyncService {
     }
   }
 
-  public initUser(role: UserRole, username: string, cameraActive = false, micActive = false): ClassroomUser {
+  public initUser(
+    role: UserRole,
+    username: string,
+    classCode: string,
+    cameraActive = false,
+    micActive = false
+  ): ClassroomUser {
     const sessionId = getOrCreateWindowSessionId();
+    const cleanClassCode = classCode.trim().toUpperCase() || 'PY-1001';
+
     this.currentUser = {
       sessionId,
       role,
       username,
+      classCode: cleanClassCode,
       joinedAt: Date.now(),
       cameraActive,
       micActive,
-      avatarColor: getRandomAvatarColor(),
+      avatarColor: role === 'teacher' ? '#f59e0b' : getRandomAvatarColor(),
       lastPing: Date.now(),
     };
 
     // Store in sessionStorage
     try {
       sessionStorage.setItem('classroom_user_profile', JSON.stringify(this.currentUser));
+      if (role === 'teacher') {
+        localStorage.setItem(
+          STORAGE_LAST_ACTIVE_CLASS_KEY,
+          JSON.stringify({
+            classCode: cleanClassCode,
+            teacherName: username,
+            timestamp: Date.now(),
+          })
+        );
+      }
     } catch {
       // ignore
     }
@@ -91,10 +116,11 @@ export class ClassroomSyncService {
     this.broadcast({
       action: 'peer_join',
       sender: this.currentUser,
+      classCode: cleanClassCode,
       timestamp: Date.now(),
     });
 
-    // Start heartbeat every 4 seconds
+    // Start heartbeat
     this.startHeartbeat();
 
     return this.currentUser;
@@ -107,6 +133,22 @@ export class ClassroomSyncService {
       if (stored) {
         this.currentUser = JSON.parse(stored);
         return this.currentUser;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  public getActiveTeacherClass(): { classCode: string; teacherName: string; timestamp: number } | null {
+    try {
+      const stored = localStorage.getItem(STORAGE_LAST_ACTIVE_CLASS_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Only consider valid within last 2 hours
+        if (Date.now() - (parsed.timestamp || 0) < 2 * 60 * 60 * 1000) {
+          return parsed;
+        }
       }
     } catch {
       // ignore
@@ -131,6 +173,7 @@ export class ClassroomSyncService {
     this.broadcast({
       action: 'media_toggle',
       sender: this.currentUser,
+      classCode: this.currentUser.classCode,
       timestamp: Date.now(),
     });
   }
@@ -138,13 +181,15 @@ export class ClassroomSyncService {
   public broadcastCode(code: string, notes?: string) {
     if (!this.currentUser) return;
 
-    // Persist latest teacher code
+    // Persist latest teacher code for this classCode
     try {
+      const key = `${STORAGE_TEACHER_CODE_PREFIX}${this.currentUser.classCode}`;
       localStorage.setItem(
-        STORAGE_TEACHER_CODE_KEY,
+        key,
         JSON.stringify({
           code,
           teacherName: this.currentUser.username,
+          classCode: this.currentUser.classCode,
           timestamp: Date.now(),
         })
       );
@@ -155,15 +200,20 @@ export class ClassroomSyncService {
     this.broadcast({
       action: 'code_broadcast',
       sender: this.currentUser,
+      classCode: this.currentUser.classCode,
       code,
       notes,
       timestamp: Date.now(),
     });
   }
 
-  public getLatestTeacherCode(): { code: string; teacherName: string; timestamp: number } | null {
+  public getLatestTeacherCode(
+    classCode?: string
+  ): { code: string; teacherName: string; timestamp: number } | null {
+    const codeKey = classCode || (this.currentUser ? this.currentUser.classCode : '');
+    if (!codeKey) return null;
     try {
-      const val = localStorage.getItem(STORAGE_TEACHER_CODE_KEY);
+      const val = localStorage.getItem(`${STORAGE_TEACHER_CODE_PREFIX}${codeKey.toUpperCase()}`);
       if (val) return JSON.parse(val);
     } catch {
       // ignore
@@ -180,7 +230,6 @@ export class ClassroomSyncService {
 
   public onPeersChange(callback: (peers: ClassroomUser[]) => void): () => void {
     this.peersListeners.push(callback);
-    // Emit initial
     callback(this.getActivePeers());
     return () => {
       this.peersListeners = this.peersListeners.filter((cb) => cb !== callback);
@@ -195,6 +244,12 @@ export class ClassroomSyncService {
       const now = Date.now();
       // Filter out stale peers (no ping in last 12 seconds)
       const fresh = peers.filter((p) => now - (p.lastPing || 0) < 12000);
+
+      // If user is currently in a classCode, filter only peers in that classCode!
+      if (this.currentUser && this.currentUser.classCode) {
+        return fresh.filter((p) => p.classCode === this.currentUser?.classCode);
+      }
+
       return fresh;
     } catch {
       return this.currentUser ? [this.currentUser] : [];
@@ -211,6 +266,7 @@ export class ClassroomSyncService {
       this.broadcast({
         action: 'peer_leave',
         sender: this.currentUser,
+        classCode: this.currentUser.classCode,
         timestamp: Date.now(),
       });
       this.removePeer(this.currentUser.sessionId);
@@ -238,6 +294,16 @@ export class ClassroomSyncService {
   private handleIncomingMessage(msg: BroadcastMessage) {
     if (!msg || !msg.sender) return;
 
+    // Only process messages for the same classCode if both have classCode
+    if (
+      this.currentUser &&
+      this.currentUser.classCode &&
+      msg.classCode &&
+      msg.classCode !== this.currentUser.classCode
+    ) {
+      return;
+    }
+
     if (msg.action === 'peer_join' || msg.action === 'peer_ping' || msg.action === 'media_toggle') {
       this.upsertPeer(msg.sender);
     } else if (msg.action === 'peer_leave') {
@@ -257,17 +323,18 @@ export class ClassroomSyncService {
       this.broadcast({
         action: 'peer_ping',
         sender: this.currentUser,
+        classCode: this.currentUser.classCode,
         timestamp: Date.now(),
       });
 
-      // Cleanup stale peers
       this.cleanStalePeers();
     }, 4000);
   }
 
   private upsertPeer(user: ClassroomUser) {
     try {
-      const peers = this.getActivePeers();
+      const stored = localStorage.getItem(STORAGE_PEERS_KEY);
+      const peers: ClassroomUser[] = stored ? JSON.parse(stored) : [];
       const existingIdx = peers.findIndex((p) => p.sessionId === user.sessionId);
       if (existingIdx >= 0) {
         peers[existingIdx] = { ...peers[existingIdx], ...user, lastPing: Date.now() };
@@ -283,8 +350,11 @@ export class ClassroomSyncService {
 
   private removePeer(sessionId: string) {
     try {
-      const peers = this.getActivePeers().filter((p) => p.sessionId !== sessionId);
-      localStorage.setItem(STORAGE_PEERS_KEY, JSON.stringify(peers));
+      const stored = localStorage.getItem(STORAGE_PEERS_KEY);
+      if (!stored) return;
+      const peers: ClassroomUser[] = JSON.parse(stored);
+      const filtered = peers.filter((p) => p.sessionId !== sessionId);
+      localStorage.setItem(STORAGE_PEERS_KEY, JSON.stringify(filtered));
       this.notifyPeersListeners();
     } catch {
       // ignore
@@ -293,9 +363,12 @@ export class ClassroomSyncService {
 
   private cleanStalePeers() {
     try {
+      const stored = localStorage.getItem(STORAGE_PEERS_KEY);
+      if (!stored) return;
+      const peers: ClassroomUser[] = JSON.parse(stored);
       const now = Date.now();
-      const peers = this.getActivePeers().filter((p) => now - (p.lastPing || 0) < 12000);
-      localStorage.setItem(STORAGE_PEERS_KEY, JSON.stringify(peers));
+      const fresh = peers.filter((p) => now - (p.lastPing || 0) < 12000);
+      localStorage.setItem(STORAGE_PEERS_KEY, JSON.stringify(fresh));
       this.notifyPeersListeners();
     } catch {
       // ignore
