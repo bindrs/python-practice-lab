@@ -9,6 +9,15 @@ import CurriculumPage from './components/CurriculumPage';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('py_theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('py_theme', theme);
+  }, [theme]);
+
   const [viewMode, setViewMode] = useState<'curriculum' | 'studio'>('curriculum');
   const loadCodeRef = useRef<(codeStr: string, autoRun?: boolean) => void>(() => {});
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
@@ -878,7 +887,7 @@ export default function App() {
         fnName: f.name,
         args: a.map(rep).join(', '),
       });
-      say_(`🚪 **Portal Open (Function Call):** **${esc(f.name)}** ka chamber shuru hua. Parameters: <code>${esc(a.map(rep).join(', '))}</code>`);
+      say_(`**Function Call:** **${esc(f.name)}** chamber started. Parameters: <code>${esc(a.map(rep).join(', '))}</code>`);
       renderVessels();
       await sleep(350);
 
@@ -1138,17 +1147,17 @@ export default function App() {
             type: 'broadcast',
             text: `return ${rep(v)}`,
           });
-          say_(`🎁 **Beam Out (Return):** Function ne <b>${esc(rep(v))}</b> baahar bheja.`);
+          say_(`**Return:** Function sent back <b>${esc(rep(v))}</b>.`);
           await sleep(400);
           return { ret: v };
         }
         case 'break':
           await gate(s.ln);
-          say_('🛑 **Break Barrier:** Loop beech me hi toot gaya!');
+          say_('**Break:** Loop stopped.');
           return { brk: 1 };
         case 'continue':
           await gate(s.ln);
-          say_('⏩ **Continue Warp:** Seedha agle round par jump!');
+          say_('**Continue:** Jumping to next iteration.');
           return { cont: 1 };
         case 'pass':
           if (s.imp) return;
@@ -2582,68 +2591,96 @@ export default function App() {
   }, []);
 
   return (
-    <div ref={containerRef} className="flex flex-col h-screen h-[100dvh] w-full overflow-hidden bg-[#090e17]">
+    <div
+      ref={containerRef}
+      className={`flex flex-col h-screen h-[100dvh] w-full overflow-hidden transition-colors duration-200 ${
+        theme === 'light' ? 'bg-slate-50 text-slate-900' : 'bg-[#090e17] text-slate-100'
+      }`}
+    >
       {/* Universal Navigation Header */}
       <header className="tb justify-between shrink-0 select-none">
         <div className="flex items-center gap-3">
-          <b className="flex items-center gap-2 text-white">
-            <span className="text-xl">🐍</span>
-            <span>Python Practice Lab</span>
+          <b className={`tracking-tight ${theme === 'light' ? 'text-slate-900' : 'text-white'}`}>
+            Python Practice Lab
           </b>
-          <div className="flex items-center bg-[#10192a] p-1 rounded-full border border-slate-700/80">
+          <div
+            className={`flex items-center p-1 rounded-full border ${
+              theme === 'light'
+                ? 'bg-slate-100 border-slate-300'
+                : 'bg-[#10192a] border-slate-700/80'
+            }`}
+          >
             <button
               type="button"
               onClick={() => setViewMode('curriculum')}
-              className={`px-3.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-1 rounded-full text-xs font-bold transition ${
                 viewMode === 'curriculum'
                   ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                  : theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
                   : 'text-slate-300 hover:text-white bg-transparent border-0'
               }`}
             >
-              <span>📚 Curriculum & Guide (9 Modules)</span>
+              Curriculum & Guide (9 Modules)
             </button>
             <button
               type="button"
               onClick={() => setViewMode('studio')}
-              className={`px-3.5 py-1 rounded-full text-xs font-bold transition flex items-center gap-1.5 ${
+              className={`px-3.5 py-1 rounded-full text-xs font-bold transition ${
                 viewMode === 'studio'
                   ? 'bg-emerald-500 text-slate-950 shadow-md font-extrabold'
+                  : theme === 'light'
+                  ? 'text-slate-600 hover:text-slate-900 bg-transparent border-0'
                   : 'text-slate-300 hover:text-white bg-transparent border-0'
               }`}
             >
-              <span>⚡ Python Studio (Visualizer)</span>
+              Python Studio (Visualizer)
             </button>
           </div>
         </div>
 
-        {viewMode === 'studio' ? (
-          <div className="flex items-center gap-2">
-            <select id="ex" aria-label="Curriculum Topics" style={{ maxWidth: '260px' }}>
-              <option value="">Curriculum Topics...</option>
-            </select>
-            <button className="go" id="run">
-              Run
-            </button>
-            <button id="step">Step</button>
-            <button id="reset">Reset</button>
-            <label className="ck text-slate-300 text-xs">
-              <input type="checkbox" id="pr" /> Predict
-            </label>
-            <label className="ck text-slate-300 text-xs">
-              Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
-            </label>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {viewMode === 'studio' ? (
+            <>
+              <select id="ex" aria-label="Curriculum Topics" style={{ maxWidth: '240px' }}>
+                <option value="">Curriculum Topics...</option>
+              </select>
+              <button className="go" id="run">
+                Run
+              </button>
+              <button id="step">Step</button>
+              <button id="reset">Reset</button>
+              <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                <input type="checkbox" id="pr" /> Predict
+              </label>
+              <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
+                Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
+              </label>
+            </>
+          ) : (
             <button
               type="button"
               onClick={() => setViewMode('studio')}
-              className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold flex items-center gap-1.5 transition shadow"
+              className="text-xs px-3.5 py-1.5 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition shadow"
             >
-              <span>Open Code Studio ➔</span>
+              Open Code Studio
             </button>
-          </div>
-        )}
+          )}
+
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            className={`text-xs px-3 py-1.5 rounded-full font-bold border transition ${
+              theme === 'light'
+                ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+            }`}
+            title="Toggle Light or Dark Mode"
+          >
+            {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
+          </button>
+        </div>
       </header>
 
       {/* Main Container */}
@@ -2654,6 +2691,7 @@ export default function App() {
           className="h-full w-full overflow-hidden"
         >
           <CurriculumPage
+            theme={theme}
             onLoadCodeIntoStudio={(code) => loadCodeRef.current(code, true)}
             onCloseToStudio={() => setViewMode('studio')}
           />
@@ -2674,7 +2712,7 @@ export default function App() {
               onClick={() => setViewMode('curriculum')}
               className="text-xs text-slate-300 hover:text-white bg-slate-800 border-slate-700 px-2.5 py-0.5 rounded-md"
             >
-              📖 Browse Curriculum Lessons
+              Browse Curriculum Lessons
             </button>
           </div>
 
