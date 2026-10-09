@@ -121,13 +121,14 @@
 
 .edp textarea#code,
 [data-theme="light"] .edp textarea#code {
-  color: #f8fafc !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: #38bdf8 !important;
   background: transparent !important;
 }
 
 .edp pre#code-highlight,
 [data-theme="light"] .edp pre#code-highlight {
-  color: #f8fafc !important;
   background: transparent !important;
 }
 
@@ -398,18 +399,35 @@ button.go:hover {
 
 textarea#code {
   display: block;
+  position: relative;
   width: 100%;
-  height: auto;
-  min-height: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 700 14px/24px "JetBrains Mono", monospace;
+  margin: 0;
   padding: 6px 10px 6px 46px;
+  box-sizing: border-box;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace !important;
+  font-size: 14px !important;
+  line-height: 24px !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  tab-size: 4 !important;
+  white-space: pre !important;
+  word-break: normal !important;
+  word-wrap: normal !important;
   resize: none;
-  white-space: pre;
-  overflow: hidden;
+  border: 0;
   outline: none;
+  overflow: hidden;
+  z-index: 2;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: #38bdf8 !important;
+  background: transparent !important;
+}
+
+textarea#code::selection {
+  background: rgba(56, 189, 248, 0.35) !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
 }
 
 /* Main Visualizer Area */
@@ -1862,38 +1880,92 @@ textarea#code {
   margin-top: 14px;
 }
 
-/* VS Code Syntax Highlighting */
+/* Authentic VS Code Dark+ Code Editor & Syntax Highlighting */
 #code-highlight {
   position: absolute;
   top: 0;
   left: 0;
-  right: 0;
-  bottom: 0;
+  width: 100%;
   margin: 0;
   padding: 6px 10px 6px 46px;
-  font: 700 14px/24px "JetBrains Mono", monospace;
-  color: var(--ink);
-  pointer-events: none;
-  white-space: pre;
+  box-sizing: border-box;
+  font-family: "JetBrains Mono", Consolas, "Courier New", monospace !important;
+  font-size: 14px !important;
+  line-height: 24px !important;
+  font-weight: 500 !important;
+  letter-spacing: normal !important;
+  tab-size: 4 !important;
+  white-space: pre !important;
+  word-break: normal !important;
+  word-wrap: normal !important;
   overflow: hidden;
+  pointer-events: none;
   z-index: 1;
-}
-
-textarea#code {
-  color: transparent !important;
-  caret-color: var(--ink);
+  color: #d4d4d4;
   background: transparent !important;
-  position: relative;
-  z-index: 2;
 }
 
-.vsc-kw { color: #c586c0; font-weight: 700; }
-.vsc-builtin { color: #dcdcaa; }
-.vsc-str { color: #ce9178; }
-.vsc-num { color: #b5cea8; }
-.vsc-comment { color: #6a9955; font-style: italic; }
-.vsc-op { color: #d4d4d4; }
-.vsc-id { color: #9cdcfe; }
+/* Authentic VS Code Dark+ Syntax Colors */
+.vsc-kw { color: #c586c0 !important; font-weight: 600; }
+.vsc-decl { color: #569cd6 !important; font-weight: 600; }
+.vsc-builtin { color: #dcdcaa !important; font-weight: 500; }
+.vsc-fn { color: #dcdcaa !important; font-weight: 500; }
+.vsc-class { color: #4ec9b0 !important; font-weight: 600; }
+.vsc-str { color: #ce9178 !important; }
+.vsc-num { color: #b5cea8 !important; }
+.vsc-comment { color: #6a9955 !important; font-style: italic; }
+.vsc-op { color: #d4d4d4 !important; }
+.vsc-punct { color: #808080 !important; }
+.vsc-id { color: #9cdcfe !important; }
+.vsc-bool { color: #569cd6 !important; font-weight: 600; }
+.vsc-self { color: #569cd6 !important; font-style: italic; }
+
+/* Step Navigation and Counter */
+#step-counter {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  background: #10192a;
+  color: #34d399;
+  border: 1px solid #1e293b;
+  white-space: nowrap;
+}
+
+button#step-back {
+  background: #1e293b;
+  color: #e2e8f0;
+  border: 1px solid #334155;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+button#step-back:hover:not(:disabled) {
+  background: #334155;
+  color: #ffffff;
+}
+button#step-back:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+button#step {
+  font-weight: 700;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+button#step:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

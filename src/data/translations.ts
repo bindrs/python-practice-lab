@@ -7,6 +7,9 @@ export interface UITranslations {
   curriculumBtn: string;
   runBtn: string;
   stepBtn: string;
+  stepBackBtn: string;
+  pauseBtn: string;
+  stepCounterLabel: string;
   resetBtn: string;
   predictLabel: string;
   speedLabel: string;
@@ -68,8 +71,11 @@ export const UI_STRINGS: Record<Language, UITranslations> = {
     curriculumSubtitle: '9 Modules · Complete Interactive Guide',
     studioBtn: 'Python Studio (Visualizer)',
     curriculumBtn: 'Curriculum & Guide (9 Modules)',
-    runBtn: 'Run',
-    stepBtn: 'Step',
+    runBtn: 'Run / Play',
+    stepBtn: 'Step >',
+    stepBackBtn: '< Back',
+    pauseBtn: 'Pause',
+    stepCounterLabel: 'Step',
     resetBtn: 'Reset',
     predictLabel: 'Predict',
     speedLabel: 'Speed',
@@ -130,7 +136,10 @@ export const UI_STRINGS: Record<Language, UITranslations> = {
     studioBtn: 'Python Studio (Visualizer)',
     curriculumBtn: 'Nisab & Guide (9 Modules)',
     runBtn: 'Run Karein',
-    stepBtn: 'Step-by-Step',
+    stepBtn: 'Agay >',
+    stepBackBtn: '< Peeche',
+    pauseBtn: 'Rokain',
+    stepCounterLabel: 'Marhala',
     resetBtn: 'Reset Karein',
     predictLabel: 'Andaza Lagayein',
     speedLabel: 'Raftaar',
