@@ -40,32 +40,32 @@ export default function App() {
   const memHistoryOnRef = useRef(false);
   const renderVesselsRef = useRef<() => void>(() => {});
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const exSelect = containerRef.current.querySelector<HTMLSelectElement>('#ex');
-    if (!exSelect) return;
-    const curVal = exSelect.value;
-    exSelect.innerHTML = `<option value="">${t.chooseTopic}</option>`;
-    CURRICULUM_MODULES.forEach((mod) => {
-      const og = document.createElement('optgroup');
-      const isUrdulish = lang === 'urdulish';
-      const modTitle = isUrdulish && MODULE_URDULISH[mod.id]
-        ? MODULE_URDULISH[mod.id].title
-        : mod.title;
-      og.label = `Module ${mod.moduleNumber}: ${modTitle}`;
-      mod.topics.forEach((top) => {
-        const o = document.createElement('option');
-        o.value = top.id;
-        const topTitle = isUrdulish && TOPIC_URDULISH[top.id]?.title
-          ? TOPIC_URDULISH[top.id].title
-          : top.title;
-        o.textContent = `${top.topicNumber} ${topTitle}`;
-        og.append(o);
-      });
-      exSelect.append(og);
-    });
-    if (curVal) exSelect.value = curVal;
-  }, [lang, t.chooseTopic]);
+  const [isRunning, setIsRunning] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [stepCounterText, setStepCounterText] = useState('Step 0 / 0');
+  const [canStepBack, setCanStepBack] = useState(false);
+  const [canStepForward, setCanStepForward] = useState(true);
+  const [selectedTopic, setSelectedTopic] = useState('');
+
+  const runnerActionsRef = useRef<{
+    run: () => void;
+    stepBack: () => void;
+    step: () => void;
+    reset: () => void;
+    clear: () => void;
+    predictGo: () => void;
+    predictCancel: () => void;
+    selectTopic: (topicId: string) => void;
+  }>({
+    run: () => {},
+    stepBack: () => {},
+    step: () => {},
+    reset: () => {},
+    clear: () => {},
+    predictGo: () => {},
+    predictCancel: () => {},
+    selectTopic: () => {},
+  });
 
   useEffect(() => {
     autoTagCloserRef.current = autoTagCloser;
@@ -1655,8 +1655,9 @@ export default function App() {
       const stepBtn = $('#step') as HTMLButtonElement | null;
       const total = historyFrames.length;
       const curStep = historyIdx >= 0 ? historyIdx + 1 : 0;
+      const counterStr = `${t.stepCounterLabel} ${curStep} / ${total}`;
       if (counterEl) {
-        counterEl.textContent = `${t.stepCounterLabel} ${curStep} / ${total}`;
+        counterEl.textContent = counterStr;
       }
       if (stepBackBtn) {
         stepBackBtn.disabled = historyIdx <= 0;
@@ -1664,6 +1665,11 @@ export default function App() {
       if (stepBtn) {
         stepBtn.disabled = !running && historyIdx >= total - 1 && total > 0;
       }
+      setIsRunning(running);
+      setIsPaused(running && mode === 'step');
+      setStepCounterText(counterStr);
+      setCanStepBack(historyIdx > 0);
+      setCanStepForward(running || historyIdx < total - 1 || total === 0);
     }
 
     function restoreSnapshot(snap: HistorySnapshot) {
@@ -2655,6 +2661,8 @@ export default function App() {
       if (wait) wait();
       wait = null;
       running = false;
+      setIsRunning(false);
+      setIsPaused(false);
       steps = 0;
       historyFrames = [];
       historyIdx = -1;
@@ -2678,11 +2686,17 @@ export default function App() {
     }
 
     async function start(m: string, src: string) {
+      if (!src || !src.trim()) {
+        say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya curriculum se topic muntakhib karein.' : '**Notice:** Please enter code in the editor or select a topic.');
+        return;
+      }
       reset();
       cur = gen;
       mode = m;
       auto = m === 'step';
       running = true;
+      setIsRunning(true);
+      setIsPaused(m === 'step');
       updateStepCounter();
       out('python main.py', '\n', false, true);
       try {
@@ -2715,99 +2729,157 @@ export default function App() {
         historyIdx = historyFrames.length - 1;
         updateStepCounter();
       } finally {
-        if (cur === gen) running = false;
+        if (cur === gen) {
+          running = false;
+          setIsRunning(false);
+          setIsPaused(false);
+        }
         updateStepCounter();
       }
     }
 
-    const runBtn = $('#run');
-    if (runBtn) {
-      runBtn.onclick = () => {
-        if (running) {
-          if (mode === 'step') {
-            mode = 'run';
-            if (historyIdx < historyFrames.length - 1) {
-              historyIdx = historyFrames.length - 1;
-              restoreSnapshot(historyFrames[historyIdx]);
-            }
-            if (wait) wait();
-            return;
+    const handleRun = () => {
+      const srcCode = code ? code.value : '';
+      if (!srcCode.trim()) {
+        say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya curriculum se topic muntakhib karein.' : '**Notice:** Please enter code in the editor or select a topic.');
+        return;
+      }
+      if (running) {
+        if (mode === 'step') {
+          mode = 'run';
+          if (historyIdx < historyFrames.length - 1) {
+            historyIdx = historyFrames.length - 1;
+            restoreSnapshot(historyFrames[historyIdx]);
           }
-          mode = 'step';
+          setIsPaused(false);
+          updateStepCounter();
+          if (wait) wait();
           return;
         }
-        const prInput = $('#pr') as HTMLInputElement;
-        if (prInput?.checked) {
-          const pt = $('#pt') as HTMLTextAreaElement;
-          if (pt) pt.value = '';
-          $('#pred')?.classList.add('on');
-          pt?.focus();
-        } else {
-          start('run', code.value);
+        mode = 'step';
+        setIsPaused(true);
+        updateStepCounter();
+        return;
+      }
+      const prInput = $('#pr') as HTMLInputElement;
+      if (prInput?.checked) {
+        const pt = $('#pt') as HTMLTextAreaElement;
+        if (pt) pt.value = '';
+        $('#pred')?.classList.add('on');
+        pt?.focus();
+      } else {
+        start('run', srcCode);
+      }
+    };
+
+    const handleStepBack = () => {
+      if (running && mode === 'run') {
+        mode = 'step';
+        setIsPaused(true);
+      }
+      if (historyIdx > 0) {
+        historyIdx--;
+        restoreSnapshot(historyFrames[historyIdx]);
+        updateStepCounter();
+      }
+    };
+
+    const handleStep = () => {
+      if (historyIdx < historyFrames.length - 1) {
+        historyIdx++;
+        restoreSnapshot(historyFrames[historyIdx]);
+        updateStepCounter();
+        return;
+      }
+
+      if (running) {
+        mode = 'step';
+        setIsPaused(true);
+        if (wait) wait();
+      } else {
+        const srcCode = code ? code.value : '';
+        if (!srcCode.trim()) {
+          say_(lang === 'urdulish' ? '**Tawajjo:** Pehle code likhein ya topic muntakhib karein.' : '**Notice:** Please enter code first.');
+          return;
         }
-      };
-    }
+        start('step', srcCode);
+      }
+    };
+
+    const handleReset = () => {
+      reset();
+    };
+
+    const handleClear = () => {
+      if (screen) screen.innerHTML = '';
+      curSpan = null;
+      OUTTXT = '';
+    };
+
+    const handlePredictGo = () => {
+      const pt = $('#pt') as HTMLTextAreaElement;
+      pred = pt ? pt.value : '';
+      $('#pred')?.classList.remove('on');
+      const srcCode = code ? code.value : '';
+      start('run', srcCode);
+    };
+
+    const handlePredictCancel = () => {
+      $('#pred')?.classList.remove('on');
+    };
+
+    const handleSelectTopic = (topId: string) => {
+      if (!topId) return;
+      setSelectedTopic(topId);
+      for (const m of CURRICULUM_MODULES) {
+        const found = m.topics.find((t) => t.id === topId);
+        if (found) {
+          if (code) {
+            code.value = found.guide.codeExample;
+            updateHighlight();
+            drawGut();
+          }
+          reset();
+          const summary = (lang === 'urdulish' || (lang as string) === 'hinglish')
+            ? (TOPIC_URDULISH[found.id]?.summary || found.intro.summary)
+            : found.intro.summary;
+          say_(`**Topic ${found.topicNumber}:** ${summary}`);
+          break;
+        }
+      }
+    };
+
+    runnerActionsRef.current = {
+      run: handleRun,
+      stepBack: handleStepBack,
+      step: handleStep,
+      reset: handleReset,
+      clear: handleClear,
+      predictGo: handlePredictGo,
+      predictCancel: handlePredictCancel,
+      selectTopic: handleSelectTopic,
+    };
+
+    const runBtn = $('#run');
+    if (runBtn) runBtn.onclick = handleRun;
 
     const pgoBtn = $('#pgo');
-    if (pgoBtn) {
-      pgoBtn.onclick = () => {
-        const pt = $('#pt') as HTMLTextAreaElement;
-        pred = pt ? pt.value : '';
-        $('#pred')?.classList.remove('on');
-        start('run', code.value);
-      };
-    }
+    if (pgoBtn) pgoBtn.onclick = handlePredictGo;
 
     const pnoBtn = $('#pno');
-    if (pnoBtn) {
-      pnoBtn.onclick = () => $('#pred')?.classList.remove('on');
-    }
+    if (pnoBtn) pnoBtn.onclick = handlePredictCancel;
 
     const clrBtn = $('#clr');
-    if (clrBtn) {
-      clrBtn.onclick = () => {
-        screen.innerHTML = '';
-        curSpan = null;
-      };
-    }
+    if (clrBtn) clrBtn.onclick = handleClear;
 
     const stepBackBtn = $('#step-back');
-    if (stepBackBtn) {
-      stepBackBtn.onclick = () => {
-        if (running && mode === 'run') {
-          mode = 'step';
-        }
-        if (historyIdx > 0) {
-          historyIdx--;
-          restoreSnapshot(historyFrames[historyIdx]);
-          updateStepCounter();
-        }
-      };
-    }
+    if (stepBackBtn) stepBackBtn.onclick = handleStepBack;
 
     const stepBtn = $('#step');
-    if (stepBtn) {
-      stepBtn.onclick = () => {
-        if (historyIdx < historyFrames.length - 1) {
-          historyIdx++;
-          restoreSnapshot(historyFrames[historyIdx]);
-          updateStepCounter();
-          return;
-        }
-
-        if (running) {
-          mode = 'step';
-          if (wait) wait();
-        } else {
-          start('step', code.value);
-        }
-      };
-    }
+    if (stepBtn) stepBtn.onclick = handleStep;
 
     const resetBtn = $('#reset');
-    if (resetBtn) {
-      resetBtn.onclick = reset;
-    }
+    if (resetBtn) resetBtn.onclick = handleReset;
 
     const VOID_TAGS = new Set([
       'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
@@ -2839,6 +2911,13 @@ export default function App() {
       const start = code.selectionStart;
       const end = code.selectionEnd;
       const val = code.value;
+
+      // Ctrl+Enter or Cmd+Enter to Run Code
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        handleRun();
+        return;
+      }
 
       // 1. Tab key always indents 4 spaces
       if (e.key === 'Tab') {
@@ -3109,22 +3188,67 @@ export default function App() {
         <div className="flex items-center gap-2">
           {viewMode === 'studio' ? (
             <>
-              <select id="ex" aria-label="Curriculum Topics" style={{ maxWidth: '240px' }}>
+              <select
+                id="ex"
+                aria-label="Curriculum Topics"
+                style={{ maxWidth: '240px' }}
+                value={selectedTopic}
+                onChange={(e) => {
+                  setSelectedTopic(e.target.value);
+                  runnerActionsRef.current.selectTopic(e.target.value);
+                }}
+              >
                 <option value="">{t.chooseTopic}</option>
+                {CURRICULUM_MODULES.map((mod) => (
+                  <optgroup key={mod.id} label={`Module ${mod.moduleNumber}: ${mod.title}`}>
+                    {mod.topics.map((top) => (
+                      <option key={top.id} value={top.id}>
+                        {top.topicNumber} {top.title}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
-              <button className="go" id="run" title="Run / Play / Pause">
-                {t.runBtn}
+              <button
+                className={`go ${isRunning ? 'running' : ''}`}
+                id="run"
+                title="Run / Play / Pause (Ctrl+Enter)"
+                type="button"
+                onClick={() => runnerActionsRef.current.run()}
+              >
+                {isRunning
+                  ? (isPaused ? (lang === 'urdulish' ? 'Chalaein' : 'Resume') : (lang === 'urdulish' ? 'Rokein' : 'Pause'))
+                  : t.runBtn}
               </button>
-              <button id="step-back" title="Step Backward">
+              <button
+                id="step-back"
+                title="Step Backward"
+                type="button"
+                disabled={!canStepBack}
+                onClick={() => runnerActionsRef.current.stepBack()}
+              >
                 {t.stepBackBtn}
               </button>
-              <button id="step" title="Step Forward">
+              <button
+                id="step"
+                title="Step Forward"
+                type="button"
+                disabled={!canStepForward}
+                onClick={() => runnerActionsRef.current.step()}
+              >
                 {t.stepBtn}
               </button>
               <span id="step-counter" title="Current Step / Total Steps">
-                {t.stepCounterLabel} 0 / 0
+                {stepCounterText || `${t.stepCounterLabel} 0 / 0`}
               </span>
-              <button id="reset" title="Reset">{t.resetBtn}</button>
+              <button
+                id="reset"
+                title="Reset"
+                type="button"
+                onClick={() => runnerActionsRef.current.reset()}
+              >
+                {t.resetBtn}
+              </button>
               <label className={`ck text-xs ${theme === 'light' ? 'text-slate-700' : 'text-slate-300'}`}>
                 <input type="checkbox" id="pr" /> {t.predictLabel}
               </label>
@@ -3326,7 +3450,12 @@ export default function App() {
               >
                 {t.turtleTab}
               </button>
-              <button id="clr" style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}>
+              <button
+                id="clr"
+                type="button"
+                onClick={() => runnerActionsRef.current.clear()}
+                style={{ marginLeft: 'auto', background: 'transparent', border: '1px solid #334155', color: '#94a3b8', fontSize: '11px', padding: '2px 8px', borderRadius: '4px' }}
+              >
                 {t.clearOutput}
               </button>
             </div>
@@ -3352,10 +3481,21 @@ export default function App() {
               </p>
               <textarea id="pt" rows={4} aria-label="Prediction input" />
               <div className="mb">
-                <button className="go" id="pgo">
+                <button
+                  className="go"
+                  id="pgo"
+                  type="button"
+                  onClick={() => runnerActionsRef.current.predictGo()}
+                >
                   {t.verifyPrediction}
                 </button>
-                <button id="pno">{t.cancelBtn}</button>
+                <button
+                  id="pno"
+                  type="button"
+                  onClick={() => runnerActionsRef.current.predictCancel()}
+                >
+                  {t.cancelBtn}
+                </button>
               </div>
             </div>
           </div>
