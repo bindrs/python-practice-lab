@@ -191,7 +191,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-cyan-400 flex-shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    <ChevronRight className="w-4 h-4 text-white flex-shrink-0 transition-transform group-hover:translate-x-0.5" />
                   </button>
                 ))}
               </div>
@@ -209,7 +209,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
                     onClick={handleCopyNotes}
                     className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-semibold"
                   >
-                    {copiedNotes ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedNotes ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                     <span>{copiedNotes ? 'Copied' : 'Copy Notes'}</span>
                   </button>
                   <button
@@ -217,7 +217,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
                     onClick={handleDownloadNotes}
                     className="flex items-center gap-1 text-sky-400 hover:text-sky-300 font-semibold"
                   >
-                    <Download className="w-3.5 h-3.5" />
+                    <Download className="w-3.5 h-3.5 text-white" />
                     <span>Download (.md)</span>
                   </button>
                 </div>
@@ -238,7 +238,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
                   onClick={handleCopyCode}
                   className="flex items-center gap-1 text-cyan-400 hover:text-cyan-300 font-semibold"
                 >
-                  {copiedCode ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedCode ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
                   <span>{copiedCode ? 'Copied' : 'Copy Latest Code'}</span>
                 </button>
               </div>
@@ -253,7 +253,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
         <div className="flex items-center justify-between p-4 border-t border-slate-800 bg-slate-900/60 flex-wrap gap-2">
           <div className="flex items-center gap-2">
             <span className="text-[11px] text-emerald-400 flex items-center gap-1.5 font-mono truncate max-w-xs">
-              <Check className="w-4 h-4 flex-shrink-0 text-emerald-400" />
+              <Check className="w-4 h-4 flex-shrink-0 text-white" />
               <span className="truncate">{lecture.filename}</span>
             </span>
             <span className="text-[10px] text-slate-400 font-mono">({lecture.sizeMb} MB)</span>
@@ -265,7 +265,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
               onClick={handleDownloadNotes}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors"
             >
-              <FileText className="w-3.5 h-3.5 text-cyan-400" />
+              <FileText className="w-3.5 h-3.5 text-white" />
               <span>Download Notes (.md)</span>
             </button>
 
@@ -274,7 +274,7 @@ export const LectureVideoModal: React.FC<LectureVideoModalProps> = ({
               download={lecture.filename}
               className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-xs font-bold transition-all shadow-md shadow-cyan-950/60"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 text-white" />
               <span>Download Video Again</span>
             </a>
 

@@ -58,9 +58,9 @@ body {
   color: #e2e8f0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  flex-wrap: wrap;
+  gap: 8px;
+  padding: 5px 12px;
+  flex-wrap: nowrap;
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -80,7 +80,12 @@ body {
 }
 
 .tb button {
-  padding: 4px 16px;
+  padding: 5px 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 28px;
 }
 
 button {
@@ -2126,4 +2131,13 @@ textarea#code {
 
 .speaking-pulse {
   animation: speakingPulse 1.5s infinite;
+}
+
+/* Make all icons render in white */
+svg.lucide, .lucide, svg[data-lucide] {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+svg.lucide[fill]:not([fill="none"]), .lucide[fill]:not([fill="none"]) {
+  fill: #ffffff !important;
 }

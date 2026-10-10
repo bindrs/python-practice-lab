@@ -282,12 +282,12 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
             <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
               {deviceType === 'mobile' ? (
                 <>
-                  <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                  <Smartphone className="w-3.5 h-3.5 text-white" />
                   <span>Mobile View</span>
                 </>
               ) : (
                 <>
-                  <Laptop className="w-3.5 h-3.5 text-amber-400" />
+                  <Laptop className="w-3.5 h-3.5 text-white" />
                   <span>Desktop View</span>
                 </>
               )}
@@ -296,8 +296,8 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
 
           {/* Header Title */}
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-amber-500/20 border border-cyan-500/30 flex items-center justify-center text-cyan-400 flex-shrink-0 shadow-inner">
-              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6" />
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-amber-500/20 border border-cyan-500/30 flex items-center justify-center text-white flex-shrink-0 shadow-inner">
+              <GraduationCap className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
@@ -330,7 +330,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                 className="p-1 sm:px-2 sm:py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-mono flex items-center gap-1 transition-colors"
                 title="Copy Session ID"
               >
-                {copiedSession ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                {copiedSession ? <Check className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3 text-white" />}
                 <span className="hidden sm:inline">{copiedSession ? 'Copied' : 'Copy'}</span>
               </button>
               <button
@@ -339,7 +339,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                 className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors"
                 title="Generate new Session ID for this window"
               >
-                <RefreshCw className="w-3 h-3" />
+                <RefreshCw className="w-3 h-3 text-white" />
               </button>
             </div>
           </div>
@@ -359,7 +359,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
-              <GraduationCap className="w-4 h-4 text-sky-400 flex-shrink-0" />
+              <GraduationCap className="w-4 h-4 text-white flex-shrink-0" />
               <span>Student</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
                 Join Class
@@ -379,7 +379,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
-              <Crown className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <Crown className="w-4 h-4 text-white flex-shrink-0" />
               <span>Teacher</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 Host Class
@@ -394,8 +394,8 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                 Your Username / Display Name
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <User className="w-4 h-4" />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-white">
+                  <User className="w-4 h-4 text-white" />
                 </div>
                 <input
                   type="text"
@@ -414,7 +414,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
               <div className="p-3.5 sm:p-4 bg-amber-950/20 border border-amber-500/30 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-amber-400" />
+                    <Hash className="w-3.5 h-3.5 text-white" />
                     Teacher's Class Code (Give this to students)
                   </label>
                   <button
@@ -422,7 +422,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                     onClick={handleGenerateNewClassCode}
                     className="text-[11px] text-amber-400 hover:text-amber-300 underline font-mono flex items-center gap-1"
                   >
-                    <RefreshCw className="w-3 h-3" />
+                    <RefreshCw className="w-3 h-3 text-white" />
                     New Code
                   </button>
                 </div>
@@ -442,13 +442,13 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                     className="absolute right-2 px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-mono rounded flex items-center gap-1 border border-amber-500/30"
                     title="Copy Class Code"
                   >
-                    {copiedClassCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    {copiedClassCode ? <Check className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3 text-white" />}
                     <span>{copiedClassCode ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
 
                 <p className="text-[11px] text-amber-300/80 flex items-center gap-1">
-                  <Info className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+                  <Info className="w-3.5 h-3.5 text-white flex-shrink-0" />
                   Students enter this code <code>{classCode}</code> to connect to your live classroom.
                 </p>
               </div>
@@ -457,7 +457,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
               <div className="p-3.5 sm:p-4 bg-sky-950/20 border border-sky-500/30 rounded-xl space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-sky-300 flex items-center gap-1.5">
-                    <Hash className="w-3.5 h-3.5 text-sky-400" />
+                    <Hash className="w-3.5 h-3.5 text-white" />
                     Class Code (Given by Teacher)
                   </label>
                   {detectedTeacherClass && (
@@ -466,7 +466,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                       onClick={() => setClassCode(detectedTeacherClass.classCode)}
                       className="text-[11px] text-sky-400 hover:text-sky-300 underline font-mono flex items-center gap-1"
                     >
-                      <Sparkles className="w-3 h-3" />
+                      <Sparkles className="w-3 h-3 text-white" />
                       Use {detectedTeacherClass.classCode}
                     </button>
                   )}
@@ -499,7 +499,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                   </div>
                 ) : (
                   <p className="text-[11px] text-sky-300/80 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />
+                    <Info className="w-3.5 h-3.5 text-white flex-shrink-0" />
                     Ask your teacher for their <b>Class Code</b> to join their live room.
                   </p>
                 )}
@@ -549,7 +549,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                         : 'bg-red-500/10 text-red-400 border-red-500/30'
                     }`}
                   >
-                    {cameraEnabled ? <Video className="w-3.5 h-3.5 text-emerald-400" /> : <VideoOff className="w-3.5 h-3.5" />}
+                    {cameraEnabled ? <Video className="w-3.5 h-3.5 text-white" /> : <VideoOff className="w-3.5 h-3.5 text-white" />}
                     <span>{cameraEnabled ? 'Camera ON' : 'Camera OFF'}</span>
                   </button>
 
@@ -562,7 +562,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                         : 'bg-red-500/10 text-red-400 border-red-500/30'
                     }`}
                   >
-                    {micEnabled ? <Mic className="w-3.5 h-3.5 text-emerald-400" /> : <MicOff className="w-3.5 h-3.5" />}
+                    {micEnabled ? <Mic className="w-3.5 h-3.5 text-white" /> : <MicOff className="w-3.5 h-3.5 text-white" />}
                     <span>{micEnabled ? 'Mic ON' : 'Muted'}</span>
                   </button>
                 </div>
@@ -607,7 +607,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                   ? `Start Classroom (Code: ${classCode || '...'})`
                   : `Connect to Class (${classCode || 'Enter Code'})`}
               </span>
-              <ArrowRight className="w-4 h-4" />
+              <ArrowRight className="w-4 h-4 text-white" />
             </button>
           </form>
 
@@ -619,7 +619,7 @@ export const ClassroomLoginModal: React.FC<ClassroomLoginModalProps> = ({
                 onClick={onQuickSandbox}
                 className="text-xs text-slate-400 hover:text-amber-300 font-medium transition-colors flex items-center justify-center gap-1.5 mx-auto"
               >
-                <Zap className="w-3.5 h-3.5 text-amber-400" />
+                <Zap className="w-3.5 h-3.5 text-white" />
                 <span>Don't have a room code? Open Visualizer Sandbox directly</span>
               </button>
             </div>

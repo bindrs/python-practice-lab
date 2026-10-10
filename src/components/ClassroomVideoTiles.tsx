@@ -119,7 +119,7 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
                   style={{ backgroundColor: currentUser.avatarColor || '#38bdf8' }}
                 >
                   {currentUser.role === 'teacher' ? (
-                    <Crown className="w-6 h-6 text-amber-300" />
+                    <Crown className="w-6 h-6 text-white" />
                   ) : (
                     currentUser.username.charAt(0).toUpperCase()
                   )}
@@ -127,7 +127,7 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
                 <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
                   {isSelfSpeaking ? (
                     <span className="text-emerald-400 font-bold flex items-center gap-1">
-                      <Volume2 className="w-3 h-3 animate-pulse" /> Speaking...
+                      <Volume2 className="w-3 h-3 text-white animate-pulse" /> Speaking...
                     </span>
                   ) : (
                     <span>Camera Off</span>
@@ -139,9 +139,9 @@ export const ClassroomVideoTiles: React.FC<ClassroomVideoTilesProps> = ({
             {/* User Badge Overlay */}
             <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-sm text-[10px] font-medium text-white border border-white/10">
               {currentUser.role === 'teacher' ? (
-                <Crown className="w-3 h-3 text-amber-400" />
+                <Crown className="w-3 h-3 text-white" />
               ) : (
-                <GraduationCap className="w-3 h-3 text-sky-400" />
+                <GraduationCap className="w-3 h-3 text-white" />
               )}
               <span className="truncate max-w-[100px]">{currentUser.username} (You)</span>
               {isSelfSpeaking && (
@@ -273,7 +273,7 @@ const PeerVideoTile: React.FC<PeerVideoTileProps> = ({ peer, remoteStream, isSpe
             style={{ backgroundColor: peer.avatarColor || '#a855f7' }}
           >
             {peer.role === 'teacher' ? (
-              <Crown className="w-4 h-4 text-amber-300" />
+              <Crown className="w-4 h-4 text-white" />
             ) : (
               peer.username.charAt(0).toUpperCase()
             )}
@@ -291,13 +291,13 @@ const PeerVideoTile: React.FC<PeerVideoTileProps> = ({ peer, remoteStream, isSpe
       <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
         {isSpeaking ? (
           <span className="px-1 py-0.5 rounded bg-emerald-500/80 text-white text-[8px] font-bold flex items-center gap-0.5">
-            <Volume2 className="w-2.5 h-2.5 animate-pulse" /> Speaking
+            <Volume2 className="w-2.5 h-2.5 text-white animate-pulse" /> Speaking
           </span>
         ) : peer.micActive ? (
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" title="Mic active" />
         ) : (
           <span title="Mic muted">
-            <MicOff className="w-2.5 h-2.5 text-slate-500" />
+            <MicOff className="w-2.5 h-2.5 text-white" />
           </span>
         )}
       </div>

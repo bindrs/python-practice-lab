@@ -8,30 +8,26 @@ import {
   VideoOff,
   Mic,
   MicOff,
-  LogOut,
-  Download,
-  Share2,
   ExternalLink,
   ChevronDown,
   Sparkles,
-  CheckCircle,
   Copy,
   Check,
   Power,
   AlertTriangle,
   ShieldCheck,
-  Database,
   MessageSquare,
   Eye,
   EyeOff,
   Activity,
   Code2,
   Square,
-  Circle,
   VolumeX,
   Film,
   Monitor,
   Layers,
+  RefreshCw,
+  Hash,
 } from 'lucide-react';
 import { ClassroomUser } from './classroomTypes';
 
@@ -56,7 +52,6 @@ interface ClassroomHeaderBarProps {
   latestTeacherActionNotice?: string;
   onToggleDashboard?: () => void;
   isDashboardOpen?: boolean;
-  // User requested features:
   onHideHeader?: () => void;
   isStudentPresenting?: boolean;
   onToggleStudentPresenting?: () => void;
@@ -130,7 +125,6 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   };
 
   const handleOpenNewStudentWindow = () => {
-    // Save active class to localStorage so new student tab immediately picks up this class code!
     try {
       localStorage.setItem(
         'python_classroom_last_active_class',
@@ -147,71 +141,64 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
   };
 
   return (
-    <header className="bg-[#0b1120] border-b border-[#1e293b] px-2.5 sm:px-3 py-1.5 flex items-center justify-between gap-1.5 sm:gap-3 text-xs flex-wrap sm:flex-nowrap z-30">
-      {/* Left: Role, User Badge, and Class Code */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+    <header className="bg-[#0b1120] border-b border-[#1e293b] px-2 sm:px-3 py-1 flex items-center justify-between gap-1 sm:gap-2 text-xs flex-nowrap z-30 select-none">
+      {/* LEFT: User Profile Icon, Class Code Icon Button & Peers Counter Icon */}
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        {/* User Role Icon Avatar */}
         <div
-          className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-full font-bold text-[11px] shadow-sm max-w-[170px] sm:max-w-none ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center font-bold text-xs shadow-sm transition-transform hover:scale-105 cursor-pointer flex-shrink-0 ${
             isTeacher
-              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-              : 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+              ? 'bg-amber-500/20 text-white border border-amber-500/40 ring-1 ring-amber-500/20'
+              : 'bg-sky-500/20 text-white border border-sky-500/40 ring-1 ring-sky-500/20'
           }`}
+          style={{ backgroundColor: currentUser.avatarColor ? `${currentUser.avatarColor}25` : undefined }}
+          title={`${currentUser.username} (${isTeacher ? 'Teacher' : 'Student'}) · Window ID: ${currentUser.sessionId}`}
         >
-          {isTeacher ? <Crown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" /> : <GraduationCap className="w-3.5 h-3.5 text-sky-400 flex-shrink-0" />}
-          <span className="truncate">{currentUser.username}</span>
-          <span className="text-[10px] opacity-75 font-mono hidden xs:inline">({isTeacher ? 'Teacher' : 'Student'})</span>
+          {isTeacher ? (
+            <Crown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          ) : (
+            <GraduationCap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          )}
         </div>
 
-        {/* Class Code Pill */}
-        <div
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-mono text-[11px] font-bold border transition-colors ${
+        {/* Class Code Icon Button */}
+        <button
+          type="button"
+          onClick={handleCopyClassCode}
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center border transition-colors flex-shrink-0 text-white ${
             isTeacher
-              ? 'bg-amber-950/40 text-amber-300 border-amber-500/40'
-              : 'bg-sky-950/40 text-sky-300 border-sky-500/40'
+              ? 'bg-amber-950/40 hover:bg-amber-900/50 border-amber-500/40'
+              : 'bg-sky-950/40 hover:bg-sky-900/50 border-sky-500/40'
           }`}
-          title={isTeacher ? `Teacher's Class Code: Give this code (${currentUser.classCode}) to your students` : `Connected to Class Code: ${currentUser.classCode}`}
+          title={`Class Code: ${currentUser.classCode} (Click to copy)`}
         >
-          <span className="opacity-70 font-sans text-[10px]">Class:</span>
-          <span className="tracking-wider">{currentUser.classCode}</span>
-          <button
-            type="button"
-            onClick={handleCopyClassCode}
-            className="hover:text-white transition-colors"
-            title="Copy Class Code"
-          >
-            {copiedCode ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-          </button>
-        </div>
+          {copiedCode ? (
+            <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          ) : (
+            <Hash className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          )}
+        </button>
 
-        {/* Window Session ID */}
-        <div
-          className="hidden md:flex items-center gap-1 font-mono text-[10px] text-slate-400 bg-slate-900/80 border border-slate-800 px-2 py-0.5 rounded-md"
-          title="Unique Window Session ID"
-        >
-          <span className="opacity-60">ID:</span>
-          <span className="text-slate-300 font-semibold">{currentUser.sessionId}</span>
-        </div>
-
-        {/* Connected Participants Dropdown Trigger */}
-        <div className="relative">
+        {/* Peers Count Icon Button with badge */}
+        <div className="relative flex-shrink-0">
           <button
             type="button"
             onClick={() => setShowPeersDropdown((prev) => !prev)}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-900 hover:bg-slate-800 border border-slate-750 text-slate-300 hover:text-white transition-colors"
-            title="View all connected classroom members"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-750 text-white transition-colors relative flex items-center justify-center"
+            title={`Connected Members: ${peers.length} Online (${teachersCount} Teacher, ${studentsCount} Students)`}
           >
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <Users className="w-3.5 h-3.5 text-slate-400" />
-            <span className="font-semibold">{peers.length} Online</span>
-            <ChevronDown className="w-3 h-3 text-slate-400" />
+            <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+            <span className="absolute -top-1 -right-1 px-1 min-w-[15px] h-3.5 rounded-full bg-emerald-500 text-[8.5px] font-bold text-white flex items-center justify-center font-mono">
+              {peers.length}
+            </span>
           </button>
 
-          {/* Peers Dropdown */}
+          {/* Peers Dropdown Menu */}
           {showPeersDropdown && (
-            <div className="absolute left-0 top-full mt-1.5 w-64 bg-[#0f172a] border border-slate-700 rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1">
+            <div className="absolute left-0 top-full mt-1.5 w-64 bg-[#0f172a] border border-slate-700 rounded-xl shadow-2xl p-3 z-50 animate-in fade-in slide-in-from-top-1 text-left">
               <div className="flex items-center justify-between pb-2 border-b border-slate-800 mb-2">
-                <span className="font-bold text-slate-200">Classroom Peers</span>
-                <span className="text-[10px] text-slate-400">
+                <span className="font-bold text-white text-xs">Classroom Peers</span>
+                <span className="text-[10px] text-slate-300">
                   {teachersCount} Teacher · {studentsCount} Student{studentsCount === 1 ? '' : 's'}
                 </span>
               </div>
@@ -231,7 +218,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                         className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                         style={{ backgroundColor: peer.avatarColor || '#38bdf8' }}
                       />
-                      <span className="font-medium text-slate-200 truncate">
+                      <span className="font-medium text-white truncate">
                         {peer.username}
                         {peer.sessionId === currentUser.sessionId && ' (You)'}
                       </span>
@@ -239,15 +226,15 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
 
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       <span
-                        className={`text-[9px] font-mono px-1 rounded ${
+                        className={`text-[9px] font-mono px-1 rounded text-white ${
                           peer.role === 'teacher'
-                            ? 'bg-amber-500/20 text-amber-300'
-                            : 'bg-sky-500/20 text-sky-300'
+                            ? 'bg-amber-500/20'
+                            : 'bg-sky-500/20'
                         }`}
                       >
                         {peer.role}
                       </span>
-                      <span className="text-[9px] font-mono text-slate-400">{peer.sessionId}</span>
+                      <span className="text-[9px] font-mono text-slate-300">{peer.sessionId}</span>
                     </div>
                   </div>
                 ))}
@@ -257,15 +244,15 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                 <button
                   type="button"
                   onClick={handleOpenNewStudentWindow}
-                  className="text-sky-400 hover:text-sky-300 flex items-center gap-1 underline"
+                  className="text-white hover:text-slate-200 flex items-center gap-1 underline"
                 >
-                  <ExternalLink className="w-3 h-3" />
+                  <ExternalLink className="w-3 h-3 text-white" />
                   Open Student in New Tab
                 </button>
                 <button
                   type="button"
                   onClick={() => setShowPeersDropdown(false)}
-                  className="text-slate-400 hover:text-slate-200"
+                  className="text-slate-400 hover:text-white"
                 >
                   Close
                 </button>
@@ -275,161 +262,132 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         </div>
       </div>
 
-      {/* Center: Live Screen Broadcast & Student Code / Presenter Controls */}
-      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-        {/* TEACHER CONTROLS */}
+      {/* CENTER: Live Broadcast, Presenter Stage, Sync Actions (Icons Only in White) */}
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
         {isTeacher ? (
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* If a student is currently presenting */}
+          <>
+            {/* If Student Presenting: Take Back Stage Icon Button */}
             {activePresenterName ? (
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-xs font-bold animate-pulse shadow-sm">
-                <Radio className="w-3.5 h-3.5 text-emerald-400 animate-spin" />
-                <span>Student <b>{activePresenterName}</b> is Live</span>
-                {onToggleStudentPresenting && (
-                  <button
-                    type="button"
-                    onClick={onToggleStudentPresenting}
-                    className="ml-1 px-2 py-0.5 rounded bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[10px] shadow-sm transition-transform active:scale-95"
-                    title="Take back presenter stage to Teacher"
-                  >
-                    Take Back Stage
-                  </button>
-                )}
-              </div>
-            ) : (
-              <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[11px] font-bold shadow-xs animate-pulse"
-                title="All actions performed by you (typing code, Run, Step, Reset, switching tabs, selecting examples) are automatically mirrored on connected students' screens live in real-time"
+              <button
+                type="button"
+                onClick={onToggleStudentPresenting}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-white border border-emerald-500/40 flex items-center justify-center transition-all animate-pulse"
+                title={`Student ${activePresenterName} is live presenting! Click to take back stage`}
               >
-                <Radio className="w-3.5 h-3.5 text-rose-400" />
-                <span>Broadcasting Screen Live</span>
-                <span className="hidden lg:inline text-[10px] text-rose-400/80">({studentsCount} student{studentsCount === 1 ? '' : 's'})</span>
+                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" />
+              </button>
+            ) : (
+              /* Broadcasting Live Screen Status Indicator Icon */
+              <div
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/20 text-white border border-rose-500/40 flex items-center justify-center"
+                title={`Broadcasting Screen Live (${studentsCount} student${studentsCount === 1 ? '' : 's'} connected)`}
+              >
+                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-pulse" />
               </div>
             )}
 
-            {/* Teacher toggle: Allow Students to Code */}
+            {/* Toggle Student Coding Permission Icon Button */}
             {onToggleOpenCoding && (
               <button
                 type="button"
                 onClick={onToggleOpenCoding}
-                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-colors text-white ${
                   isOpenCodingEnabled
-                    ? 'bg-teal-500/20 text-teal-300 border-teal-500/40'
-                    : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
+                    ? 'bg-teal-500/20 hover:bg-teal-500/30 border-teal-500/40 shadow-xs'
+                    : 'bg-slate-900 hover:bg-slate-800 border-slate-800 opacity-60'
                 }`}
-                title="Toggle whether any student can press 'Code & Visualize to Everyone' and present to the whole class"
+                title={`Student Live Coding: ${isOpenCodingEnabled ? 'Allowed (Students can present)' : 'Locked (Only teacher can present)'}`}
               >
-                <Code2 className="w-3.5 h-3.5 text-teal-400" />
-                <span className="hidden xl:inline">Student Coding:</span>
-                <span className="font-bold">{isOpenCodingEnabled ? 'Allowed' : 'Locked'}</span>
+                <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </button>
             )}
 
+            {/* Force Sync Code to Students Icon Button */}
             <button
               type="button"
               onClick={handleBroadcastClick}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md font-bold text-xs transition-all shadow-sm ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all text-white ${
                 broadcastSentAnim
-                  ? 'bg-emerald-500 text-white'
-                  : 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-900/30'
+                  ? 'bg-emerald-500 border-emerald-400 shadow-sm'
+                  : 'bg-amber-600 hover:bg-amber-500 border-amber-500 shadow-sm'
               }`}
-              title="Force re-sync entire code to all connected students"
+              title="Force re-sync code to all student screens"
             >
               {broadcastSentAnim ? (
-                <>
-                  <CheckCircle className="w-3.5 h-3.5 text-white" />
-                  <span>Code Synced!</span>
-                </>
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               ) : (
-                <>
-                  <Radio className="w-3.5 h-3.5 text-amber-100" />
-                  <span className="hidden sm:inline">Sync Code to Students</span>
-                </>
+                <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               )}
             </button>
-          </div>
+          </>
         ) : (
-          /* STUDENT CONTROLS: "Code & Visualize to Everyone" button */
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            {/* The user-requested button: Any student can code and visualize to everyone! */}
+          /* Student Controls (Icons Only in White) */
+          <>
+            {/* Student Stage Toggle: Code & Visualize to Everyone */}
             {onToggleStudentPresenting && isOpenCodingEnabled && (
               <button
                 type="button"
                 onClick={onToggleStudentPresenting}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all shadow-md ${
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all text-white ${
                   isStudentPresenting
-                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 border border-amber-400 shadow-amber-500/30 ring-2 ring-amber-400/50'
-                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border border-emerald-400/40 shadow-emerald-950/50 animate-pulse'
+                    ? 'bg-amber-500 border-amber-400 ring-2 ring-amber-400/50 shadow-md'
+                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-emerald-400/40 shadow-sm animate-pulse'
                 }`}
                 title={
                   isStudentPresenting
-                    ? 'You are currently broadcasting your code & actions to everyone! Click to stop.'
-                    : 'Click to unlock code editor: any code you write and run/step will mirror live on everyone\'s screen!'
+                    ? 'You are live presenting to class! Click to stop sharing stage'
+                    : 'Code & Visualize to Everyone: Take stage to code and mirror live'
                 }
               >
-                {isStudentPresenting ? (
-                  <>
-                    <Radio className="w-3.5 h-3.5 animate-spin text-slate-950" />
-                    <span>Stop Sharing Stage</span>
-                  </>
-                ) : (
-                  <>
-                    <Code2 className="w-3.5 h-3.5" />
-                    <span>Code & Visualize to Everyone</span>
-                  </>
-                )}
+                <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </button>
             )}
 
+            {/* Student Screen Follow Status Icon */}
             {!isStudentPresenting ? (
               <div
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-sky-500/20 text-sky-200 border border-sky-500/40 text-[11px] font-bold shadow-xs"
-                title="You are in View Screen Only mode. All actions performed by the teacher or active presenter mirror live here."
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-sky-500/20 text-white border border-sky-500/40 flex items-center justify-center"
+                title={`View Screen Only (Following ${activePresenterName || 'Teacher'})`}
               >
-                <Eye className="w-3.5 h-3.5 text-sky-400 animate-pulse" />
-                <span>View Screen Only</span>
-                <span className="hidden sm:inline text-sky-300 font-normal">· Following {activePresenterName || 'Teacher'}</span>
+                <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-pulse" />
               </div>
             ) : (
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
-                Live Presenter (Class Seeing Your Code)
-              </span>
+              <div
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/20 text-white border border-emerald-500/40 flex items-center justify-center"
+                title="Live Presenter: Class seeing your code and actions live"
+              >
+                <Radio className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white animate-spin" />
+              </div>
             )}
 
             {latestTeacherActionNotice && (
-              <div className="hidden md:flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-mono animate-in fade-in">
-                <Sparkles className="w-3 h-3 text-amber-400 flex-shrink-0" />
-                <span className="truncate max-w-[200px]">{latestTeacherActionNotice}</span>
+              <div
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/20 border border-amber-500/40 text-white flex items-center justify-center animate-in fade-in"
+                title={`Latest Action: ${latestTeacherActionNotice}`}
+              >
+                <Sparkles className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
               </div>
             )}
-          </div>
+          </>
         )}
       </div>
 
-      {/* Right: Camera Recording, AV Controls, Dashboard, Hide Header */}
-      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap sm:flex-nowrap">
-        {/* User Requested: Record Screen & Web Cam Automatic Lecture Video Button */}
+      {/* RIGHT: Recording, Dashboard, AV Controls, Hide Navbar, End Session (Icons in White) */}
+      <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+        {/* Lecture Recording Studio Icon Button */}
         {onToggleRecording && (
-          <div className="relative flex items-center">
+          <div className="relative flex items-center flex-shrink-0">
             {isRecording ? (
               <button
                 type="button"
                 onClick={onToggleRecording}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-bold transition-all shadow-md bg-rose-600 hover:bg-rose-500 text-white animate-pulse ring-2 ring-rose-400/50 shadow-rose-950/60"
-                title={`Lecture Recording in progress (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center animate-pulse shadow-md border border-rose-400/40"
+                title={`REC Active (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
               >
-                <span className="w-2 h-2 rounded-full bg-white animate-ping" />
-                <Square className="w-3 h-3 fill-current" />
-                <span>REC LECTURE {recordingDurationStr}</span>
-                {lectureChaptersCount > 0 && (
-                  <span className="hidden xl:inline bg-rose-950/80 text-rose-200 border border-rose-400/40 px-1.5 py-0.2 rounded text-[10px] font-mono">
-                    {lectureChaptersCount} ch
-                  </span>
-                )}
+                <Square className="w-3.5 h-3.5 sm:w-4 sm:h-4 fill-white text-white" />
               </button>
             ) : (
-              <div className="flex items-center rounded-md overflow-hidden shadow-md shadow-cyan-950/40 border border-cyan-500/40">
+              <div className="flex items-center rounded-lg overflow-hidden border border-cyan-500/40 shadow-xs">
                 <button
                   type="button"
                   onClick={() => {
@@ -439,56 +397,43 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                       onToggleRecording();
                     }
                   }}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-xs font-bold transition-all"
-                  title="Record Screen and Web Cam PiP simultaneously to make an automatic lecture video with chapters & notes"
+                  className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white flex items-center justify-center transition-all"
+                  title="Record Screen + WebCam PiP Lecture Video"
                 >
-                  <Film className="w-3.5 h-3.5 text-cyan-200 flex-shrink-0" />
-                  <span>Record Lecture</span>
-                  <span className="hidden lg:inline text-[10px] text-cyan-200 font-mono font-normal">
-                    (Screen+Cam)
-                  </span>
+                  <Film className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </button>
-
                 <button
                   type="button"
                   onClick={() => setShowRecModeMenu((prev) => !prev)}
-                  className="px-1.5 py-1 bg-cyan-700 hover:bg-cyan-600 text-cyan-100 border-l border-cyan-500/40 transition-colors"
-                  title="Select recording mode (Screen+Cam, Screen Only, or Camera Only)"
+                  className="h-7 sm:h-8 px-1 bg-cyan-700 hover:bg-cyan-600 text-white border-l border-cyan-500/40 flex items-center justify-center transition-colors"
+                  title="Select recording format (Screen+Cam, Screen Only, Cam Only)"
                 >
-                  <ChevronDown className="w-3 h-3" />
+                  <ChevronDown className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-white" />
                 </button>
               </div>
             )}
 
             {/* Recording Mode Dropdown Menu */}
             {!isRecording && showRecModeMenu && (
-              <div className="absolute right-0 top-full mt-1.5 w-64 bg-[#0f172a] border border-cyan-500/40 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 text-xs">
-                <div className="px-2 py-1 font-bold text-slate-200 border-b border-slate-800 mb-1 text-[11px] flex items-center justify-between">
+              <div className="absolute right-0 top-full mt-1.5 w-60 bg-[#0f172a] border border-cyan-500/40 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-1 text-xs text-left">
+                <div className="px-2 py-1 font-bold text-white border-b border-slate-800 mb-1 text-[11px] flex items-center justify-between">
                   <span>Select Lecture Format</span>
-                  <span className="text-[10px] text-cyan-400 font-mono">1080p HD</span>
+                  <span className="text-[10px] text-white font-mono">1080p HD</span>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => {
                     setShowRecModeMenu(false);
-                    if (onStartLectureRecording) {
-                      onStartLectureRecording('lecture_composite');
-                    } else {
-                      onToggleRecording();
-                    }
+                    if (onStartLectureRecording) onStartLectureRecording('lecture_composite');
+                    else onToggleRecording();
                   }}
-                  className="w-full text-left p-2 rounded-lg hover:bg-cyan-950/60 flex items-start gap-2 text-slate-200 hover:text-cyan-200 transition-colors"
+                  className="w-full text-left p-2 rounded-lg hover:bg-cyan-950/60 flex items-start gap-2 text-white transition-colors"
                 >
-                  <Layers className="w-4 h-4 text-cyan-400 flex-shrink-0 mt-0.5" />
+                  <Layers className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold flex items-center gap-1.5">
-                      <span>Screen + WebCam PiP</span>
-                      <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1 rounded">Recommended</span>
-                    </div>
-                    <div className="text-[10px] text-slate-400">
-                      Visualizer screen with camera overlay in corner, mixed audio & auto chapters
-                    </div>
+                    <div className="font-bold text-xs text-white">Screen + WebCam PiP</div>
+                    <div className="text-[10px] text-slate-300">Composite canvas with PiP webcam</div>
                   </div>
                 </button>
 
@@ -496,20 +441,15 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                   type="button"
                   onClick={() => {
                     setShowRecModeMenu(false);
-                    if (onStartLectureRecording) {
-                      onStartLectureRecording('screen_only');
-                    } else {
-                      onToggleRecording();
-                    }
+                    if (onStartLectureRecording) onStartLectureRecording('screen_only');
+                    else onToggleRecording();
                   }}
-                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-slate-200 transition-colors"
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-white transition-colors"
                 >
-                  <Monitor className="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5" />
+                  <Monitor className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold">Screen Only</div>
-                    <div className="text-[10px] text-slate-400">
-                      Record Python code editor, turtle canvas & debugger screen only
-                    </div>
+                    <div className="font-bold text-xs text-white">Screen Only</div>
+                    <div className="text-[10px] text-slate-300">Record visualizer screen only</div>
                   </div>
                 </button>
 
@@ -517,20 +457,15 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                   type="button"
                   onClick={() => {
                     setShowRecModeMenu(false);
-                    if (onStartLectureRecording) {
-                      onStartLectureRecording('camera_only');
-                    } else {
-                      onToggleRecording();
-                    }
+                    if (onStartLectureRecording) onStartLectureRecording('camera_only');
+                    else onToggleRecording();
                   }}
-                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-slate-200 transition-colors"
+                  className="w-full text-left p-2 rounded-lg hover:bg-slate-800 flex items-start gap-2 text-white transition-colors"
                 >
-                  <Video className="w-4 h-4 text-rose-400 flex-shrink-0 mt-0.5" />
+                  <Video className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />
                   <div>
-                    <div className="font-bold">Camera Only</div>
-                    <div className="text-[10px] text-slate-400">
-                      Record webcam video & microphone audio feed
-                    </div>
+                    <div className="font-bold text-xs text-white">Camera Only</div>
+                    <div className="text-[10px] text-slate-300">Record webcam & microphone only</div>
                   </div>
                 </button>
               </div>
@@ -538,134 +473,134 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
           </div>
         )}
 
-        {/* Student Classroom Dashboard Toggle */}
+        {/* Student Classroom Dashboard Icon Button */}
         {!isTeacher && onToggleDashboard && (
           <button
             type="button"
             onClick={onToggleDashboard}
-            className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 text-white ${
               isDashboardOpen
-                ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md shadow-emerald-500/20 font-bold'
-                : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/30 hover:border-emerald-500/50'
+                ? 'bg-emerald-500 border-emerald-400 shadow-sm'
+                : 'bg-slate-900 hover:bg-slate-800 border-emerald-500/30'
             }`}
-            title="Open Student Classroom Dashboard (Live session duration, active teacher & classroom statistics)"
+            title="Classroom Dashboard (Session duration, attendance & statistics)"
           >
-            <Activity className="w-3.5 h-3.5 flex-shrink-0" />
-            <span className="hidden md:inline">Dashboard</span>
+            <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
           </button>
         )}
 
-        {/* Toggle Live Classroom Conversation & Audio Call */}
+        {/* Classroom Conversation Icon Button */}
         <button
           type="button"
           onClick={onToggleConversation}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold border transition-all ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 text-white ${
             isConversationOpen
-              ? 'bg-sky-500 text-slate-950 border-sky-400 shadow-md shadow-sky-500/20 font-bold'
-              : 'bg-slate-900 hover:bg-slate-800 text-sky-300 border-sky-500/30 hover:border-sky-500/50'
+              ? 'bg-sky-500 border-sky-400 shadow-sm'
+              : 'bg-slate-900 hover:bg-slate-800 border-sky-500/30'
           }`}
-          title="Open Classroom Conversation (Voice Call, Chat, Questions & Hand Raise)"
+          title="Classroom Conversation (Voice Call, Chat, Questions & Hand Raise)"
         >
-          <MessageSquare className="w-3.5 h-3.5 flex-shrink-0" />
-          <span className="hidden md:inline">Conversation</span>
+          <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
         </button>
 
-        {/* Toggle Classroom Cameras Tile */}
+        {/* Cameras Tiles Toggle Icon Button */}
         <button
           type="button"
           onClick={onToggleVideoTiles}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium border transition-colors ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-colors flex-shrink-0 text-white ${
             isVideoTilesOpen
-              ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border-slate-750'
+              ? 'bg-sky-500/20 border-sky-500/40'
+              : 'bg-slate-900 hover:bg-slate-800 border-slate-750'
           }`}
-          title="Toggle live camera and avatar tiles"
+          title="Toggle Classroom Cameras Dock"
         >
-          <Video className="w-3.5 h-3.5 text-sky-400" />
-          <span className="hidden md:inline">Cameras</span>
+          <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
         </button>
 
-        {/* Mic Toggle (Teacher / Student can close mic) */}
+        {/* Microphone Toggle Icon Button */}
         <button
           type="button"
           onClick={onToggleMic}
-          className={`p-1.5 rounded-md border transition-colors ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-colors flex-shrink-0 text-white ${
             micActive
-              ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
-              : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-xs'
+              ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
+              : 'bg-red-500/20 border-red-500/40'
           }`}
-          title={micActive ? 'Close Microphone' : 'Turn Microphone On'}
+          title={micActive ? 'Microphone: ON (Click to Mute)' : 'Microphone: MUTED (Click to Unmute)'}
         >
-          {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+          {micActive ? (
+            <Mic className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          ) : (
+            <MicOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          )}
         </button>
 
-        {/* Camera Toggle (Teacher / Student can close camera) */}
+        {/* Camera Toggle Icon Button */}
         <button
           type="button"
           onClick={onToggleCamera}
-          className={`p-1.5 rounded-md border transition-colors ${
+          className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-colors flex-shrink-0 text-white ${
             cameraActive
-              ? 'bg-slate-800 hover:bg-slate-700 text-emerald-400 border-slate-700'
-              : 'bg-red-500/20 text-red-400 border-red-500/40 shadow-xs'
+              ? 'bg-slate-800 hover:bg-slate-700 border-slate-700'
+              : 'bg-red-500/20 border-red-500/40'
           }`}
-          title={cameraActive ? 'Close Camera' : 'Turn Camera On'}
+          title={cameraActive ? 'Camera: ON (Click to Turn Off)' : 'Camera: OFF (Click to Turn On)'}
         >
-          {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+          {cameraActive ? (
+            <Video className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          ) : (
+            <VideoOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+          )}
         </button>
 
-        {/* Teacher Quick Button: Close Both Mic & Camera */}
+        {/* Teacher Quick Button: Close Both AV Icon Button */}
         {isTeacher && onCloseBothMedia && (
           <button
             type="button"
             onClick={onCloseBothMedia}
-            className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-colors ${
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg border flex items-center justify-center transition-colors flex-shrink-0 text-white ${
               cameraActive || micActive
-                ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 shadow-xs'
-                : 'bg-slate-900 hover:bg-slate-800 text-slate-400 border border-slate-800'
+                ? 'bg-rose-500/20 hover:bg-rose-500/30 border-rose-500/40'
+                : 'bg-slate-900 hover:bg-slate-800 border-slate-800 opacity-60'
             }`}
-            title="Turn off both your camera and microphone with 1 click"
+            title="Turn off both your Camera & Microphone with 1 click"
           >
-            <VideoOff className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">Close Mic & Cam</span>
-            <span className="sm:hidden">Close AV</span>
+            <VideoOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
           </button>
         )}
 
-        {/* Teacher Quick Button: Mute All Students */}
+        {/* Teacher Quick Button: Mute All Students Icon Button */}
         {isTeacher && onTeacherMuteAllStudents && (
           <button
             type="button"
             onClick={onTeacherMuteAllStudents}
-            className="flex items-center gap-1 px-2 py-1 rounded-md bg-slate-900 hover:bg-rose-950/60 text-slate-300 hover:text-rose-300 border border-slate-800 hover:border-rose-500/40 text-[11px] font-semibold transition-colors"
-            title="Remotely mute all students' microphones and turn off their cameras"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 hover:bg-rose-950/60 text-white border border-slate-800 hover:border-rose-500/40 flex items-center justify-center transition-colors flex-shrink-0"
+            title="Remotely mute all students' microphones & cameras"
           >
-            <VolumeX className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden md:inline">Mute Students</span>
+            <VolumeX className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
           </button>
         )}
 
-        {/* User Requested: Hide Header Navbar Button for Best Visuals */}
+        {/* Hide Navbar Icon Button */}
         {onHideHeader && (
           <button
             type="button"
             onClick={onHideHeader}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-750 text-xs font-bold transition-all shadow-sm hover:border-slate-600"
-            title="Hide Header Navbar for maximum visualizer screen space (can be restored anytime with 1 click)"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-slate-900 hover:bg-slate-800 text-white border border-slate-750 flex items-center justify-center transition-all flex-shrink-0"
+            title="Hide Header Navbar for maximum visual space (Press H to restore)"
           >
-            <EyeOff className="w-3.5 h-3.5 text-sky-400" />
-            <span className="hidden xs:inline">Hide Navbar</span>
+            <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
           </button>
         )}
 
-        {/* Dedicated Session End Button */}
+        {/* End Session Icon Button */}
         <button
           type="button"
           onClick={() => setShowEndSessionConfirm(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/40 text-xs font-bold transition-all shadow-sm shadow-rose-950/40 min-h-[28px]"
-          title="End Session: Click to permanently end this classroom session (refreshing page will not end session)"
+          className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-rose-500/20 hover:bg-rose-600 text-white border border-rose-500/40 flex items-center justify-center transition-all shadow-sm shadow-rose-950/40 flex-shrink-0"
+          title="End Classroom Session (Permanent log out)"
         >
-          <Power className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
-          <span className="hidden sm:inline">End Session</span>
+          <Power className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
         </button>
       </div>
 
@@ -674,13 +609,13 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-150">
           <div className="bg-[#0f172a] border border-rose-500/40 rounded-2xl p-5 sm:p-6 max-w-md w-full shadow-2xl space-y-4 text-left">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 flex-shrink-0">
-                <AlertTriangle className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-white flex-shrink-0">
+                <AlertTriangle className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-base font-bold text-slate-100">End Classroom Session?</h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Jab tak aap yeh button press nahi karenge, session end nahi hoga — chahe aap page refresh bhi kar lein.
+                <h3 className="text-base font-bold text-white">End Classroom Session?</h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Are you sure you want to end this session now? Refreshing the page keeps your session active.
                 </p>
               </div>
             </div>
@@ -688,25 +623,23 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
             <div className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-xs space-y-2 text-slate-300">
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Current Role:</span>
-                <span className="font-bold text-slate-200 capitalize">{currentUser.role} ({currentUser.username})</span>
+                <span className="font-bold text-white capitalize">
+                  {currentUser.role} ({currentUser.username})
+                </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Class Code:</span>
-                <span className="font-mono font-bold text-sky-400">{currentUser.classCode}</span>
+                <span className="font-mono font-bold text-white">{currentUser.classCode}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-400">Session ID:</span>
-                <span className="font-mono text-slate-300">{currentUser.sessionId}</span>
+                <span className="font-mono text-white">{currentUser.sessionId}</span>
               </div>
-              <div className="pt-2 border-t border-slate-800 text-[11px] text-emerald-400 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
-                <span>Page refresh karne par session active rehta hai.</span>
+              <div className="pt-2 border-t border-slate-800 text-[11px] text-white flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-white flex-shrink-0" />
+                <span>Page refresh will not end session. Only this button does.</span>
               </div>
             </div>
-
-            <p className="text-xs text-slate-400">
-              Are you sure you want to end this session now and return to the login screen?
-            </p>
 
             <div className="flex items-center justify-end gap-2.5 pt-1">
               <button
@@ -714,7 +647,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                 onClick={() => setShowEndSessionConfirm(false)}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
               >
-                Cancel (Keep Session Active)
+                Cancel
               </button>
               <button
                 type="button"
@@ -724,7 +657,7 @@ export const ClassroomHeaderBar: React.FC<ClassroomHeaderBarProps> = ({
                 }}
                 className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition-all shadow-lg shadow-rose-900/40 flex items-center gap-1.5"
               >
-                <Power className="w-3.5 h-3.5" />
+                <Power className="w-3.5 h-3.5 text-white" />
                 <span>Yes, End Session</span>
               </button>
             </div>

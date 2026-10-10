@@ -164,7 +164,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
       <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#0f1b33] border-b border-slate-800 flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="relative">
-            <MessageSquare className="w-4 h-4 text-sky-400" />
+            <MessageSquare className="w-4 h-4 text-white" />
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
           <div>
@@ -177,22 +177,22 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-slate-400">
+        <div className="flex items-center gap-1 text-white">
           <button
             type="button"
             onClick={() => setIsMinimized((prev) => !prev)}
-            className="p-1 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            className="p-1 hover:text-white hover:bg-slate-800 rounded transition-colors text-white"
             title={isMinimized ? 'Expand Conversation' : 'Minimize Conversation'}
           >
-            {isMinimized ? <Maximize2 className="w-3.5 h-3.5" /> : <Minimize2 className="w-3.5 h-3.5" />}
+            {isMinimized ? <Maximize2 className="w-3.5 h-3.5 text-white" /> : <Minimize2 className="w-3.5 h-3.5 text-white" />}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 hover:text-red-400 hover:bg-slate-800 rounded transition-colors"
+            className="p-1 hover:text-red-400 hover:bg-slate-800 rounded transition-colors text-white"
             title="Close Panel"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5 text-white" />
           </button>
         </div>
       </div>
@@ -207,11 +207,11 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                   activeSpeaker
                     ? 'bg-emerald-500 text-white animate-pulse'
                     : micActive
-                    ? 'bg-sky-500/20 text-sky-400'
-                    : 'bg-slate-800 text-slate-400'
+                    ? 'bg-sky-500/20 text-white'
+                    : 'bg-slate-800 text-white'
                 }`}
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3.5 h-3.5 text-white" />
               </div>
 
               <div className="truncate">
@@ -245,7 +245,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                   }`}
                   title="Raise hand to ask teacher a question"
                 >
-                  <Hand className="w-3 h-3" />
+                  <Hand className="w-3 h-3 text-white" />
                   <span>{handRaised ? 'Hand Raised!' : 'Raise Hand'}</span>
                 </button>
               )}
@@ -260,7 +260,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                 }`}
                 title={micActive ? 'Mute Microphone' : 'Unmute Microphone'}
               >
-                {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+                {micActive ? <Mic className="w-3.5 h-3.5 text-white" /> : <MicOff className="w-3.5 h-3.5 text-white" />}
               </button>
 
               <button
@@ -273,7 +273,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                 }`}
                 title={cameraActive ? 'Turn Camera Off' : 'Turn Camera On'}
               >
-                {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+                {cameraActive ? <Video className="w-3.5 h-3.5 text-white" /> : <VideoOff className="w-3.5 h-3.5 text-white" />}
               </button>
             </div>
           </div>
@@ -282,7 +282,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
           <div className="flex-1 p-3 overflow-y-auto space-y-2.5 text-xs">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 p-4">
-                <Sparkles className="w-6 h-6 text-sky-400/50 mb-1.5" />
+                <Sparkles className="w-6 h-6 text-white mb-1.5" />
                 <p className="font-medium text-slate-400">Classroom conversation is open!</p>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   Send questions, chat with the teacher, or unmute your microphone to talk live.
@@ -299,7 +299,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                       key={m.id}
                       className="p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-[11px] flex items-center gap-2 animate-in fade-in"
                     >
-                      <Hand className="w-4 h-4 text-amber-400 flex-shrink-0 animate-bounce" />
+                      <Hand className="w-4 h-4 text-white flex-shrink-0 animate-bounce" />
                       <div>
                         <b>{m.senderName}</b> raised hand to ask a question!
                       </div>
@@ -322,11 +322,11 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
                       </span>
                       {isTeacher ? (
                         <span className="px-1 py-0.2 bg-amber-500/20 text-amber-300 rounded font-bold text-[9px] flex items-center gap-0.5">
-                          <Crown className="w-2.5 h-2.5" /> Teacher
+                          <Crown className="w-2.5 h-2.5 text-white" /> Teacher
                         </span>
                       ) : (
                         <span className="px-1 py-0.2 bg-sky-500/20 text-sky-300 rounded text-[9px] flex items-center gap-0.5">
-                          <GraduationCap className="w-2.5 h-2.5" /> Student
+                          <GraduationCap className="w-2.5 h-2.5 text-white" /> Student
                         </span>
                       )}
                       <span className="text-[9px] opacity-60">
@@ -398,7 +398,7 @@ export const ClassroomConversationPanel: React.FC<ClassroomConversationPanelProp
               className="p-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-40 text-white font-semibold transition-all shadow-md shadow-sky-950/40"
               title="Send Message"
             >
-              <Send className="w-3.5 h-3.5" />
+              <Send className="w-3.5 h-3.5 text-white" />
             </button>
           </form>
         </>

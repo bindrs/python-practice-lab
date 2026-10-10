@@ -96,8 +96,8 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
       {/* Dashboard Header */}
       <div className="px-4 py-3 bg-[#0e172e] border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-sky-400">
-            <Activity className="w-4 h-4" />
+          <div className="w-7 h-7 rounded-lg bg-sky-500/15 border border-sky-400/30 flex items-center justify-center text-white">
+            <Activity className="w-4 h-4 text-white" />
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -115,22 +115,22 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-1 text-slate-400">
+        <div className="flex items-center gap-1 text-white">
           <button
             type="button"
             onClick={() => setIsExpanded((prev) => !prev)}
-            className="p-1 hover:text-white hover:bg-slate-800 rounded transition-colors"
+            className="p-1 hover:text-white hover:bg-slate-800 rounded transition-colors text-white"
             title={isExpanded ? 'Collapse Dashboard' : 'Expand Dashboard'}
           >
-            {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            {isExpanded ? <Minimize2 className="w-3.5 h-3.5 text-white" /> : <Maximize2 className="w-3.5 h-3.5 text-white" />}
           </button>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors"
+            className="p-1 hover:text-rose-400 hover:bg-slate-800 rounded transition-colors text-white"
             title="Close Dashboard"
           >
-            <X className="w-3.5 h-3.5" />
+            <X className="w-3.5 h-3.5 text-white" />
           </button>
         </div>
       </div>
@@ -145,7 +145,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <div className="absolute top-0 right-0 w-20 h-20 bg-amber-500/5 rounded-full blur-xl pointer-events-none" />
               <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
                 <span className="flex items-center gap-1 font-semibold text-slate-300">
-                  <Crown className="w-3.5 h-3.5 text-amber-400" />
+                  <Crown className="w-3.5 h-3.5 text-white" />
                   Active Teacher
                 </span>
                 <span className="text-[10px] text-emerald-400 flex items-center gap-0.5">
@@ -173,16 +173,16 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
                 <span className="flex items-center gap-1">
                   {teacherPeer?.micActive ? (
                     <span className="text-emerald-400 flex items-center gap-0.5">
-                      <Mic className="w-3 h-3" /> Audio On
+                      <Mic className="w-3 h-3 text-white" /> Audio On
                     </span>
                   ) : (
                     <span className="text-slate-500 flex items-center gap-0.5">
-                      <MicOff className="w-3 h-3" /> Muted
+                      <MicOff className="w-3 h-3 text-white" /> Muted
                     </span>
                   )}
                 </span>
                 <span className="flex items-center gap-1">
-                  <Video className="w-3 h-3 text-sky-400" />
+                  <Video className="w-3 h-3 text-white" />
                   <span>{teacherPeer?.cameraActive ? 'Camera Live' : 'Camera Off'}</span>
                 </span>
               </div>
@@ -193,7 +193,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
               <div className="absolute top-0 right-0 w-20 h-20 bg-sky-500/5 rounded-full blur-xl pointer-events-none" />
               <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
                 <span className="flex items-center gap-1 font-semibold text-slate-300">
-                  <Clock className="w-3.5 h-3.5 text-sky-400" />
+                  <Clock className="w-3.5 h-3.5 text-white" />
                   Session Duration
                 </span>
                 <span className="text-[10px] text-sky-400 font-mono">Ticking</span>
@@ -219,7 +219,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div className="grid grid-cols-3 gap-2 text-xs">
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-2.5 text-center">
               <div className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <Users className="w-3 h-3 text-emerald-400" />
+                <Users className="w-3 h-3 text-white" />
                 <span>Attendance</span>
               </div>
               <div className="text-base font-bold text-slate-100 font-mono">
@@ -232,7 +232,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-2.5 text-center">
               <div className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <Terminal className="w-3 h-3 text-purple-400" />
+                <Terminal className="w-3 h-3 text-white" />
                 <span>Active Output</span>
               </div>
               <div className="text-xs font-bold text-slate-200 capitalize truncate mt-0.5">
@@ -247,7 +247,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
 
             <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-2.5 text-center">
               <div className="text-[10px] text-slate-400 flex items-center justify-center gap-1 mb-1">
-                <Signal className="w-3 h-3 text-emerald-400" />
+                <Signal className="w-3 h-3 text-white" />
                 <span>Sync Latency</span>
               </div>
               <div className="text-xs font-bold text-emerald-400 font-mono mt-0.5">
@@ -261,7 +261,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 space-y-2">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-sky-400" />
+                <Eye className="w-3.5 h-3.5 text-white" />
                 Screen Mirror Status
               </span>
               <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
@@ -286,7 +286,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           <div className="bg-slate-900/50 border border-slate-800/80 rounded-xl p-3">
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 text-sky-400" />
+                <GraduationCap className="w-3.5 h-3.5 text-white" />
                 Connected Classroom Participants ({peers.length})
               </span>
               <span className="text-[10px] text-slate-400">Class {currentUser.classCode}</span>
@@ -342,7 +342,7 @@ export const StudentDashboard: React.FC<StudentDashboardProps> = ({
           {/* InsForge Backend & Security Verification Footer */}
           <div className="pt-1 flex items-center justify-between text-[10px] text-slate-400">
             <div className="flex items-center gap-1.5 text-slate-400">
-              <Database className="w-3 h-3 text-indigo-400" />
+              <Database className="w-3 h-3 text-white" />
               <span>InsForge Postgres Connected</span>
             </div>
 

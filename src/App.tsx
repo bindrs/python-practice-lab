@@ -31,6 +31,12 @@ import {
   X,
   Check,
   Film,
+  Play,
+  RotateCcw,
+  StepForward,
+  BookOpen,
+  Gauge,
+  HelpCircle,
 } from 'lucide-react';
 import { lectureRecorder, LectureResult } from './services/lectureRecorderService';
 import { LectureVideoModal } from './components/LectureVideoModal';
@@ -3558,44 +3564,36 @@ export default function App() {
           />
         )}
 
-        {/* Floating Quick Navbar Control when header is hidden (For Best Visuals) */}
+        {/* Floating Quick Navbar Control when header is hidden (Icons Only with White Icons) */}
         {currentUser && isHeaderHidden && (
-          <div className="fixed top-2.5 right-3 z-50 flex items-center gap-1.5 sm:gap-2 bg-[#0b1328]/95 backdrop-blur-md border border-slate-700/80 px-2.5 sm:px-3 py-1.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 text-xs">
+          <div className="fixed top-2.5 right-3 z-50 flex items-center gap-1.5 bg-[#0b1328]/95 backdrop-blur-md border border-slate-700/80 p-1.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 text-xs">
             <button
               type="button"
               onClick={() => setIsHeaderHidden(false)}
-              className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold shadow-sm transition-all"
-              title="Show Header Navbar with all classroom controls (Shortcut: Press H or click)"
+              className="w-7 h-7 rounded-full bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center shadow-sm transition-all flex-shrink-0"
+              title="Show Header Navbar (Shortcut: Press H or click)"
             >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Show Navbar</span>
+              <Eye className="w-3.5 h-3.5 text-white" />
             </button>
 
-            {/* Quick Automatic Lecture Recording Button (Screen + WebCam PiP) */}
+            {/* Quick Automatic Lecture Recording Button */}
             {isRecording ? (
               <button
                 type="button"
                 onClick={handleToggleRecording}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-600 hover:bg-rose-500 text-white font-bold animate-pulse text-[11px]"
+                className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center animate-pulse flex-shrink-0"
                 title={`Lecture Recording in progress (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
               >
-                <Square className="w-3 h-3 fill-current" />
-                <span>REC {recordingDurationStr}</span>
-                {lectureChaptersCount > 0 && (
-                  <span className="bg-rose-950/80 text-rose-200 border border-rose-400/40 px-1 py-0.2 rounded text-[9px] font-mono">
-                    {lectureChaptersCount} ch
-                  </span>
-                )}
+                <Square className="w-3 h-3 fill-white text-white" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={() => handleStartLectureRecording('lecture_composite')}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white text-[11px] font-bold shadow-sm"
+                className="w-7 h-7 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white flex items-center justify-center shadow-sm flex-shrink-0"
                 title="Record Screen and Web Cam simultaneously to create automatic lecture video"
               >
-                <Film className="w-3 h-3 text-cyan-200" />
-                <span>Rec Lecture</span>
+                <Film className="w-3 h-3 text-white" />
               </button>
             )}
 
@@ -3603,24 +3601,24 @@ export default function App() {
             <button
               type="button"
               onClick={handleToggleMic}
-              className={`p-1.5 rounded-full border text-xs transition-colors ${
-                micActive ? 'bg-slate-800 text-emerald-400 border-slate-700' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
+                micActive ? 'bg-slate-800 text-white border-slate-700' : 'bg-rose-500/20 text-white border-rose-500/40'
               }`}
               title={micActive ? 'Close Microphone' : 'Turn Microphone On'}
             >
-              {micActive ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+              {micActive ? <Mic className="w-3.5 h-3.5 text-white" /> : <MicOff className="w-3.5 h-3.5 text-white" />}
             </button>
 
             {/* Quick Cam toggle */}
             <button
               type="button"
               onClick={handleToggleCamera}
-              className={`p-1.5 rounded-full border text-xs transition-colors ${
-                cameraActive ? 'bg-slate-800 text-emerald-400 border-slate-700' : 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+              className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
+                cameraActive ? 'bg-slate-800 text-white border-slate-700' : 'bg-rose-500/20 text-white border-rose-500/40'
               }`}
               title={cameraActive ? 'Close Camera' : 'Turn Camera On'}
             >
-              {cameraActive ? <Video className="w-3.5 h-3.5" /> : <VideoOff className="w-3.5 h-3.5" />}
+              {cameraActive ? <Video className="w-3.5 h-3.5 text-white" /> : <VideoOff className="w-3.5 h-3.5 text-white" />}
             </button>
 
             {/* Quick Student Coding Toggle */}
@@ -3628,30 +3626,29 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleToggleStudentPresenting}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shadow transition-all ${
+                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
                   isStudentPresenting
-                    ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
+                    ? 'bg-amber-500 text-white ring-2 ring-amber-400'
                     : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                 }`}
                 title={isStudentPresenting ? 'Stop sharing stage' : 'Code & Visualize to Everyone'}
               >
-                <Code2 className="w-3 h-3" />
-                <span>{isStudentPresenting ? 'Live' : 'Code'}</span>
+                <Code2 className="w-3 h-3 text-white" />
               </button>
             )}
           </div>
         )}
 
-        {/* Live Presenter Stage Banner: Shown when a student or teacher is live presenting */}
+        {/* Subtle Presenter Bar (Shown only if a student is actively presenting to class) */}
         {activePresenterName && !isHeaderHidden && (
-          <div className="bg-[#0b192e] border-b border-emerald-500/40 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 shadow-md z-20 flex-wrap gap-2 animate-in fade-in">
+          <div className="bg-[#0b192e] border-b border-emerald-500/40 px-3 py-1 flex items-center justify-between text-[11px] text-slate-200 shadow-xs z-20">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping flex-shrink-0" />
-              <Radio className="w-4 h-4 text-emerald-400 animate-spin flex-shrink-0" />
-              <span className="font-bold text-emerald-300">
+              <span className="w-2 h-2 rounded-full bg-white animate-ping flex-shrink-0" />
+              <Radio className="w-4 h-4 text-white animate-spin flex-shrink-0" />
+              <span className="font-semibold text-white">
                 {isStudentPresenting
-                  ? 'You are Live Presenting: Any code you write, run, or step is mirrored to everyone!'
-                  : `Student ${activePresenterName} is Live Coding & Visualizing for Everyone`}
+                  ? 'You are Live Presenting to Class'
+                  : `Student ${activePresenterName} is Live Presenting`}
               </span>
             </div>
 
@@ -3660,141 +3657,80 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleToggleStudentPresenting}
-                  className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-transform active:scale-95"
+                  className="p-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold text-[10px] shadow-xs flex items-center justify-center"
+                  title="Stop Sharing Stage"
                 >
-                  Stop Sharing Stage
+                  <Square className="w-3 h-3 fill-white text-white" />
                 </button>
               ) : isTeacher ? (
                 <button
                   type="button"
                   onClick={handleTakeBackStage}
-                  className="px-3 py-1 rounded-md bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow transition-transform active:scale-95"
+                  className="p-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold text-[10px] shadow-xs flex items-center justify-center"
+                  title="Take Back Stage"
                 >
-                  Take Back Stage to Teacher
+                  <Radio className="w-3 h-3 text-white" />
                 </button>
               ) : null}
             </div>
           </div>
         )}
 
-        {/* Professional Student View Screen Only & Active Stats Banner (when not presenting) */}
-        {isStudent && studentViewOnly && !isStudentPresenting && !activePresenterName && !isHeaderHidden && (
-          <div className="bg-[#0b1328] border-b border-sky-500/30 px-3 py-1.5 flex items-center justify-between text-xs text-slate-200 shadow-sm z-20 flex-wrap gap-2">
-            <div className="flex items-center gap-2.5 overflow-hidden flex-wrap">
-              <div className="flex items-center gap-1.5 text-sky-300 font-bold">
-                <Eye className="w-3.5 h-3.5 animate-pulse text-sky-400" />
-                <span>View Screen Only</span>
-              </div>
-
-              {/* The User-Requested Button: Any student can code and visualize for everyone! */}
-              <button
-                type="button"
-                onClick={handleToggleStudentPresenting}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-md bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-md animate-pulse transition-all active:scale-95 border border-emerald-400/40"
-                title="Click to unlock code editor: any code you write and run/step will mirror live on everyone's screen!"
-              >
-                <Code2 className="w-3.5 h-3.5" />
-                <span>Code & Visualize to Everyone</span>
-              </button>
-
-              <span className="text-slate-700 hidden sm:inline">|</span>
-              <div className="flex items-center gap-1.5 text-slate-300">
-                <Crown className="w-3 h-3 text-amber-400" />
-                <span className="text-slate-400">Teacher:</span>
-                <span className="font-semibold text-slate-100">
-                  {peers.find((p) => p.role === 'teacher')?.username ||
-                    classroomSync.getActiveTeacherClass()?.teacherName ||
-                    'Instructor'}
-                </span>
-              </div>
-              <span className="text-slate-700 hidden md:inline">|</span>
-              <div className="hidden md:flex items-center gap-1.5 font-mono text-slate-300">
-                <Clock className="w-3 h-3 text-sky-400" />
-                <span className="text-slate-400">Duration:</span>
-                <span className="font-bold text-slate-100">{sessionDurationStr}</span>
-              </div>
-              <span className="text-slate-700 hidden lg:inline">|</span>
-              <div className="hidden lg:flex items-center gap-1.5 text-[11px] text-slate-400">
-                <span>Class:</span>
-                <span className="font-mono font-bold text-sky-400">{currentUser.classCode}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {latestTeacherActionNotice && (
-                <span className="hidden lg:flex items-center gap-1 text-[11px] font-mono text-amber-300 bg-amber-500/15 px-2 py-0.5 rounded border border-amber-500/30">
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  <span>{latestTeacherActionNotice}</span>
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => setIsStudentDashboardOpen((prev) => !prev)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all ${
-                  isStudentDashboardOpen
-                    ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-sm'
-                    : 'bg-slate-900 hover:bg-slate-800 text-emerald-300 border-emerald-500/40 hover:border-emerald-400'
-                }`}
-                title="Toggle full Read-Only Student Dashboard with active classroom statistics"
-              >
-                <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{isStudentDashboardOpen ? 'Close Dashboard' : 'Classroom Dashboard'}</span>
-              </button>
-              <span className="hidden sm:flex items-center gap-1 text-[10px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" /> Synced
-              </span>
-            </div>
-          </div>
-        )}
-
-      {/* Top Header & Actions */}
+      {/* Top Header & Actions (Icons-Only Header Toolbar with White Icons) */}
       <div className="tb">
-        <b>Python Studio</b>
-        <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly && !isStudentPresenting}>
-          <option value="">Curriculum Examples</option>
-        </select>
+        <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 text-white flex items-center justify-center flex-shrink-0" title="Python Visualizer Studio">
+          <Code2 className="w-4 h-4 text-white" />
+        </div>
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="Curriculum Examples">
+          <BookOpen className="w-3.5 h-3.5 text-white flex-shrink-0" />
+          <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly && !isStudentPresenting}>
+            <option value="">Examples</option>
+          </select>
+        </div>
         <button
           className={`go ${isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}`}
           id="run"
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Click "Code & Visualize" to code' : 'Run code'}
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Following Live' : 'Run Code (Executes Python script)'}
         >
-          Run {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
+          <Play className="w-3.5 h-3.5 fill-white text-white inline-block" />
         </button>
         <button
           id="step"
           className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Step forward' : 'Step forward'}
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Step Forward' : 'Step Forward (Line-by-line debugger)'}
         >
-          Step {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
+          <StepForward className="w-3.5 h-3.5 text-white inline-block" />
         </button>
         <button
           id="reset"
           className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Reset' : 'Reset execution'}
+          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Reset' : 'Reset Execution'}
         >
-          Reset {isStudent && studentViewOnly && !isStudentPresenting && <span className="view-only-badge">Live</span>}
+          <RotateCcw className="w-3.5 h-3.5 text-white inline-block" />
         </button>
         <button
           type="button"
           className={`tb-toggle-btn ${hideScrollbars ? 'active' : ''}`}
           onClick={() => setHideScrollbars((prev) => !prev)}
-          title="Toggle Hideable Scrollbars: hide or show scrollbars across the codebase"
+          title={`Toggle Scrollbars (Currently: ${hideScrollbars ? 'Hidden' : 'Visible'})`}
         >
-          {hideScrollbars ? 'Scrollbar: Hidden' : 'Scrollbar: Visible'}
+          {hideScrollbars ? <EyeOff className="w-3.5 h-3.5 text-white inline-block" /> : <Eye className="w-3.5 h-3.5 text-white inline-block" />}
         </button>
         <button
           type="button"
           className={`tb-toggle-btn ${isHeaderHidden ? 'active' : ''}`}
           onClick={() => setIsHeaderHidden((prev) => !prev)}
-          title="Toggle Header Navbar: hide or show top header navbar for best visual space (Shortcut: Press H)"
+          title="Toggle Header Navbar (Shortcut: Press H)"
         >
-          {isHeaderHidden ? 'Navbar: Hidden' : 'Hide Navbar'}
+          {isHeaderHidden ? <Eye className="w-3.5 h-3.5 text-white inline-block" /> : <EyeOff className="w-3.5 h-3.5 text-white inline-block" />}
         </button>
-        <label className="ck">
-          <input type="checkbox" id="pr" /> Predict Output
+        <label className="ck text-white flex items-center gap-1 cursor-pointer" title="Predict output before execution">
+          <input type="checkbox" id="pr" />
+          <HelpCircle className="w-3.5 h-3.5 text-white inline-block" />
         </label>
-        <label className="ck">
-          Speed <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
+        <label className="ck text-white flex items-center gap-1.5" title="Execution speed slider">
+          <Gauge className="w-3.5 h-3.5 text-white inline-block" />
+          <input type="range" id="spd" min="0.5" max="5" step="0.5" defaultValue="1.5" />
         </label>
       </div>
 
@@ -3811,14 +3747,14 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleToggleStudentPresenting}
-                className={`flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold shadow-sm transition-all ${
+                className={`flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold shadow-sm transition-all text-white ${
                   isStudentPresenting
-                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 ring-1 ring-amber-400'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white animate-pulse'
+                    ? 'bg-amber-500 hover:bg-amber-400 ring-1 ring-amber-400'
+                    : 'bg-emerald-600 hover:bg-emerald-500 animate-pulse'
                 }`}
                 title="When pressed, you can code and visualize for everyone!"
               >
-                <Code2 className="w-3 h-3" />
+                <Code2 className="w-3 h-3 text-white" />
                 <span>{isStudentPresenting ? 'Stop Sharing' : 'Code & Visualize for Everyone'}</span>
               </button>
             )}
