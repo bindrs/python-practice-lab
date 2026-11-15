@@ -4,6 +4,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
+import LZString from 'lz-string';
 import {
   Code2,
   Play,
@@ -12,11 +13,53 @@ import {
   BookOpen,
   Gauge,
   HelpCircle,
+  ClipboardPaste,
+  RefreshCw,
 } from 'lucide-react';
+
+const INITIAL_EMBED_CODE_PARAM =
+  'CYUwZgBGCWBesCMCu8AUA7AlALgFAQKgHsAnCac9CEgQ3QHMRUBGAGgioGoJmd9CB0SBQCkPAKwQAvFIgAGPAKWEADiWjoALqgBEAMTiwAQilg7M-ZSAA2Q8hDEBmabIWXlq9Vt0H459wI2dqIQkjLyih4CahraOiZ+FlE2AM4gkVEEMd7QFrgw8MhozOIWQA';
+
+const INITIAL_EMBED_URL = `https://pythoncompiler.io/embed/?code=${INITIAL_EMBED_CODE_PARAM}`;
+
+const buildEmbedUrl = (srcCode: string) =>
+  `https://pythoncompiler.io/embed/?code=${LZString.compressToEncodedURIComponent(srcCode)}`;
+
+const getInitialCode = (): string => {
+  try {
+    const saved = localStorage.getItem('python_visualizer_saved_code');
+    if (saved && saved.trim().length > 0) return saved;
+  } catch {
+    // ignore
+  }
+  return (
+    LZString.decompressFromEncodedURIComponent(INITIAL_EMBED_CODE_PARAM) ||
+    'def fizzbuzz(n):\n    for i in range(1, n + 1):\n        if i % 15 == 0:\n            print("FizzBuzz")\n        elif i % 3 == 0:\n            print("Fizz")\n        elif i % 5 == 0:\n            print("Buzz")\n        else:\n            print(i)\n\nfizzbuzz(15)\n'
+  );
+};
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
+  const [editorMode, setEditorMode] = useState<'embed' | 'trace'>('embed');
+  const [embedUrl, setEmbedUrl] = useState<string>(() => {
+    try {
+      const saved = localStorage.getItem('python_visualizer_saved_code');
+      if (saved && saved.trim().length > 0) {
+        return buildEmbedUrl(saved);
+      }
+    } catch {
+      // ignore
+    }
+    return INITIAL_EMBED_URL;
+  });
+  const [showPasteBox, setShowPasteBox] = useState(false);
+  const [pasteDraft, setPasteDraft] = useState('');
+  const [syncNotice, setSyncNotice] = useState('');
+  const pasteInputRef = useRef<HTMLTextAreaElement>(null);
+  const syncCodeToVisualizerRef = useRef<(newCode: string, autoRun?: boolean) => void>(() => {});
+  const getEditorCodeRef = useRef<() => string>(() => '');
+
   const autoTagCloserRef = useRef(true);
   const [memHistoryOn, setMemHistoryOn] = useState(false);
   const memHistoryOnRef = useRef(false);
@@ -25,7 +68,7 @@ export default function App() {
   const workContainerRef = useRef<HTMLDivElement>(null);
   const [codebaseWidth, setCodebaseWidth] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem('codebase_width_percent');
+      const saved = localStorage.getItem('visualizer_codebase_width_percent');
       if (saved) {
         const val = parseFloat(saved);
         if (!isNaN(val) && val >= 15 && val <= 80) return val;
@@ -33,14 +76,14 @@ export default function App() {
     } catch {
       // ignore
     }
-    return 30; // default 30% codebase
+    return 42;
   });
   const [isDraggingResizer, setIsDraggingResizer] = useState(false);
   const isDraggingRef = useRef(false);
 
   useEffect(() => {
     try {
-      localStorage.setItem('codebase_width_percent', codebaseWidth.toString());
+      localStorage.setItem('visualizer_codebase_width_percent', codebaseWidth.toString());
     } catch {
       // ignore
     }
@@ -100,7 +143,7 @@ export default function App() {
   };
 
   const handleResizerDoubleClick = () => {
-    setCodebaseWidth(30);
+    setCodebaseWidth(42);
   };
 
   const handleResizerKeyDown = (e: React.KeyboardEvent) => {
@@ -112,7 +155,7 @@ export default function App() {
       setCodebaseWidth((prev) => Math.min(80, +(prev + 2).toFixed(1)));
     } else if (e.key === 'Home') {
       e.preventDefault();
-      setCodebaseWidth(30);
+      setCodebaseWidth(42);
     }
   };
 
@@ -1607,12 +1650,13 @@ export default function App() {
       if (targetBox && targetSlot && !((window as any).__fast)) {
         await sleep(180 / spd());
 
-        const srcEl = mark || edEl;
+        const rawMarkRect = mark ? mark.getBoundingClientRect() : null;
+        const srcEl = rawMarkRect && rawMarkRect.width > 0 ? mark : workContainerRef.current?.querySelector('.edp') || edEl;
         const srcRect = srcEl ? srcEl.getBoundingClientRect() : { left: 80, top: 140, width: 40, height: 24 };
         const tgtRect = targetSlot.getBoundingClientRect();
 
-        const srcX = srcRect.left + (srcEl === mark ? 60 : srcRect.width / 2);
-        const srcY = srcRect.top + srcRect.height / 2;
+        const srcX = srcRect.left + (srcEl === mark ? 60 : Math.min(180, srcRect.width * 0.5));
+        const srcY = rawMarkRect && rawMarkRect.height > 0 ? rawMarkRect.top + rawMarkRect.height / 2 : srcRect.top + 140;
         const tgtX = tgtRect.left + tgtRect.width / 2;
         const tgtY = tgtRect.top + tgtRect.height / 2;
 
@@ -1723,13 +1767,14 @@ export default function App() {
 
       await sleep(140 / spd());
 
-      const srcEl = mark || edEl;
+      const rawMarkRect = mark ? mark.getBoundingClientRect() : null;
+      const srcEl = rawMarkRect && rawMarkRect.width > 0 ? mark : workContainerRef.current?.querySelector('.edp') || edEl;
       const srcRect = srcEl ? srcEl.getBoundingClientRect() : { left: 80, top: 140, width: 40, height: 24 };
       const tgtScreen = screen || $('#screen');
       const tgtRect = tgtScreen ? tgtScreen.getBoundingClientRect() : { left: 100, top: 400, width: 300, height: 80 };
 
-      const srcX = srcRect.left + (srcEl === mark ? 60 : srcRect.width / 2);
-      const srcY = srcRect.top + srcRect.height / 2;
+      const srcX = srcRect.left + (srcEl === mark ? 60 : Math.min(180, srcRect.width * 0.5));
+      const srcY = rawMarkRect && rawMarkRect.height > 0 ? rawMarkRect.top + rawMarkRect.height / 2 : srcRect.top + 140;
 
       // Calculate landing spot inside terminal
       const lineCount = tgtScreen ? tgtScreen.children.length : 0;
@@ -2018,8 +2063,7 @@ export default function App() {
       st: TF.showturtle,
     });
 
-    const DEFAULT =
-      'total = 0\nfor i in range(1, 6):\n    if i % 2 == 0:\n        print(i, "even hai")\n    else:\n        print(i, "odd hai")\n    total += i\nprint("Total:", total)';
+    const DEFAULT = getInitialCode();
 
     /* Curriculum Examples */
     const U: Array<[string, string, string]> = [
@@ -2143,9 +2187,16 @@ export default function App() {
       exSelect.onchange = () => {
         const i = exSelect.value;
         if (i === '') return;
-        code.value = U[+i][2];
+        const nextCode = U[+i][2];
+        code.value = nextCode;
         const highlightEl = $('#code-highlight');
         if (highlightEl) highlightEl.innerHTML = highlightPython(code.value);
+        try {
+          localStorage.setItem('python_visualizer_saved_code', nextCode);
+        } catch {
+          // ignore
+        }
+        setEmbedUrl(buildEmbedUrl(nextCode));
         reset();
         drawGut();
         say_('**Goal:** ' + U[+i][1]);
@@ -2336,6 +2387,7 @@ export default function App() {
     const stepBtn = $('#step');
     if (stepBtn) {
       stepBtn.onclick = () => {
+        setEditorMode('trace');
         if (running) {
           mode = 'step';
           if (wait) wait();
@@ -2585,17 +2637,26 @@ export default function App() {
     code.addEventListener('keydown', handleKeydown);
 
     let initialCode = DEFAULT;
-    try {
-      const saved = localStorage.getItem('python_visualizer_saved_code');
-      if (saved !== null && saved !== undefined && saved.length > 0) {
-        initialCode = saved;
-      }
-    } catch {
-      // ignore
-    }
     code.value = initialCode;
     updateHighlight();
     reset();
+
+    getEditorCodeRef.current = () => code.value;
+    syncCodeToVisualizerRef.current = (newCode: string, autoRun = false) => {
+      code.value = newCode;
+      updateHighlight();
+      try {
+        localStorage.setItem('python_visualizer_saved_code', newCode);
+      } catch {
+        // ignore
+      }
+      setEmbedUrl(buildEmbedUrl(newCode));
+      reset();
+      drawGut();
+      if (autoRun) {
+        start('run', newCode);
+      }
+    };
 
     return () => {
       gen++;
@@ -2608,6 +2669,38 @@ export default function App() {
 
   const handleTabClick = (tab: 'terminal' | 'trace' | 'turtle') => {
     setActiveTab(tab);
+  };
+
+  const notifySynced = (msg: string) => {
+    setSyncNotice(msg);
+    setTimeout(() => setSyncNotice(''), 2200);
+  };
+
+  const handlePasteFromCompiler = async () => {
+    try {
+      const clipText = await navigator.clipboard.readText();
+      if (clipText && clipText.trim().length > 0) {
+        syncCodeToVisualizerRef.current(clipText, true);
+        setShowPasteBox(false);
+        notifySynced('Synced & Visualizing');
+        return;
+      }
+    } catch {
+      // Clipboard read permission denied in iframe/browser; open inline paste box
+    }
+    setPasteDraft('');
+    setShowPasteBox((prev) => !prev);
+    setTimeout(() => pasteInputRef.current?.focus(), 40);
+  };
+
+  const handleSwitchEditorMode = (nextMode: 'embed' | 'trace') => {
+    if (nextMode === 'embed') {
+      const currentCode = getEditorCodeRef.current();
+      if (currentCode.trim()) {
+        setEmbedUrl(buildEmbedUrl(currentCode));
+      }
+    }
+    setEditorMode(nextMode);
   };
 
   return (
@@ -2626,7 +2719,7 @@ export default function App() {
         <button
           className="go"
           id="run"
-          title="Run Code (Executes Python script)"
+          title="Run Code in Visualizer"
         >
           <Play className="w-3.5 h-3.5 fill-white text-white inline-block" />
         </button>
@@ -2659,21 +2752,146 @@ export default function App() {
         style={{ gridTemplateColumns: `${codebaseWidth}% 8px minmax(0, 1fr)` }}
       >
         <aside className="edp">
-          <div className="tab-bar">
-            <div className="tab">main.py</div>
+          <div className="tab-bar" style={{ gap: '6px', padding: '4px 8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                type="button"
+                className={`auto-closer-toggle ${editorMode === 'embed' ? 'on' : ''}`}
+                onClick={() => handleSwitchEditorMode('embed')}
+                title="Embedded pythoncompiler.io Editor"
+              >
+                pythoncompiler.io
+              </button>
+              <button
+                type="button"
+                className={`auto-closer-toggle ${editorMode === 'trace' ? 'on' : ''}`}
+                onClick={() => handleSwitchEditorMode('trace')}
+                title="Live Line-Highlighted Trace Editor"
+              >
+                Trace Lines
+              </button>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto' }}>
+              {syncNotice && (
+                <span style={{ fontSize: '11px', color: 'var(--ok)', fontWeight: 700 }}>
+                  {syncNotice}
+                </span>
+              )}
+              <button
+                type="button"
+                className="auto-closer-toggle"
+                onClick={handlePasteFromCompiler}
+                title="Copy code from pythoncompiler.io and click here to visualize it"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              >
+                <ClipboardPaste className="w-3 h-3" />
+                <span>Sync &amp; Visualize</span>
+              </button>
+              {editorMode === 'trace' && (
+                <button
+                  type="button"
+                  className="auto-closer-toggle"
+                  onClick={() => {
+                    const current = getEditorCodeRef.current();
+                    setEmbedUrl(buildEmbedUrl(current));
+                    setEditorMode('embed');
+                    notifySynced('Loaded in Compiler');
+                  }}
+                  title="Push current code into pythoncompiler.io embed"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  <RefreshCw className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="ed">
-            <div className="mark" id="mark" />
-            <div className="gut" id="gut" />
-            <pre id="code-highlight" aria-hidden="true"></pre>
-            <textarea
-              id="code"
-              spellCheck={false}
-              wrap="off"
-              aria-label="Python code editor"
-              title="Python code editor"
-            />
+          {showPasteBox && (
+            <div style={{ padding: '8px', background: '#0b1220', borderBottom: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <textarea
+                ref={pasteInputRef}
+                value={pasteDraft}
+                onChange={(e) => setPasteDraft(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData.getData('text');
+                  if (pasted && pasted.trim()) {
+                    e.preventDefault();
+                    syncCodeToVisualizerRef.current(pasted, true);
+                    setShowPasteBox(false);
+                    notifySynced('Synced & Visualizing');
+                  }
+                }}
+                rows={3}
+                placeholder="Paste copied Python code here (Ctrl+V / Cmd+V) to run in Visualizer..."
+                style={{
+                  width: '100%',
+                  background: '#050811',
+                  color: '#f1f5f9',
+                  border: '1px solid #334155',
+                  borderRadius: '6px',
+                  padding: '6px 8px',
+                  fontFamily: '"JetBrains Mono", monospace',
+                  fontSize: '12px',
+                  resize: 'vertical',
+                }}
+              />
+              <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="auto-closer-toggle"
+                  onClick={() => setShowPasteBox(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="auto-closer-toggle on"
+                  onClick={() => {
+                    if (pasteDraft.trim()) {
+                      syncCodeToVisualizerRef.current(pasteDraft, true);
+                      setShowPasteBox(false);
+                      notifySynced('Synced & Visualizing');
+                    }
+                  }}
+                >
+                  Apply &amp; Visualize
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+            {editorMode === 'embed' && (
+              <div style={{ flex: 1, minHeight: '456px', padding: '6px', display: 'flex', flexDirection: 'column', zIndex: 2, background: 'var(--panel)' }}>
+                <iframe
+                  key={embedUrl}
+                  src={embedUrl}
+                  style={{ width: '100%', height: '100%', minHeight: '456px', border: '1px solid #2d2d2d', borderRadius: '8px', flex: 1 }}
+                  loading="lazy"
+                  title="Runnable Python code - pythoncompiler.io"
+                />
+              </div>
+            )}
+
+            <div
+              className="ed"
+              style={
+                editorMode === 'embed'
+                  ? { position: 'absolute', inset: 0, visibility: 'hidden', pointerEvents: 'none', zIndex: 0 }
+                  : { position: 'relative', flex: 1, minHeight: 0, zIndex: 2 }
+              }
+            >
+              <div className="mark" id="mark" />
+              <div className="gut" id="gut" />
+              <pre id="code-highlight" aria-hidden="true"></pre>
+              <textarea
+                id="code"
+                spellCheck={false}
+                wrap="off"
+                aria-label="Python code editor"
+                title="Python code editor"
+              />
+            </div>
           </div>
         </aside>
 
