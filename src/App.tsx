@@ -4,33 +4,8 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { ClassroomUser } from './components/classroomTypes';
-import { classroomSync } from './services/classroomSync';
-import { ClassroomLoginModal } from './components/ClassroomLoginModal';
-import { ClassroomHeaderBar } from './components/ClassroomHeaderBar';
-import { ClassroomVideoTiles } from './components/ClassroomVideoTiles';
-import { ClassroomConversationPanel } from './components/ClassroomConversationPanel';
-import { StudentDashboard } from './components/StudentDashboard';
-import { webRTCService } from './services/webRTCService';
 import {
-  Eye,
-  EyeOff,
-  Radio,
-  Sparkles,
-  Activity,
-  Clock,
-  Crown,
   Code2,
-  Video,
-  VideoOff,
-  Mic,
-  MicOff,
-  Square,
-  Circle,
-  Download,
-  X,
-  Check,
-  Film,
   Play,
   RotateCcw,
   StepForward,
@@ -38,80 +13,14 @@ import {
   Gauge,
   HelpCircle,
 } from 'lucide-react';
-import { lectureRecorder, LectureResult } from './services/lectureRecorderService';
-import { LectureVideoModal } from './components/LectureVideoModal';
-import { LandingPage } from './components/LandingPage';
-import { insforgeService } from './services/insforgeService';
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState<'terminal' | 'trace' | 'turtle'>('terminal');
-  const [autoTagCloser, setAutoTagCloser] = useState(true);
   const autoTagCloserRef = useRef(true);
   const [memHistoryOn, setMemHistoryOn] = useState(false);
   const memHistoryOnRef = useRef(false);
   const renderVesselsRef = useRef<() => void>(() => {});
-
-  const [hideScrollbars, setHideScrollbars] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('hide_scrollbars') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const [tagToolOpen, setTagToolOpen] = useState(false);
-  const [enteredTagValue, setEnteredTagValue] = useState('');
-  const tagInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('hide_scrollbars', String(hideScrollbars));
-    } catch {
-      // ignore
-    }
-  }, [hideScrollbars]);
-
-  const insertTagIntoCode = (tagVal: string) => {
-    const codeEl = document.getElementById('code') as HTMLTextAreaElement;
-    if (!codeEl) return;
-    const start = codeEl.selectionStart ?? codeEl.value.length;
-    const end = codeEl.selectionEnd ?? codeEl.value.length;
-    const cleanTag = tagVal.trim();
-
-    if (!cleanTag) {
-      // First blank tag insertion: < > </ > with first blank space selected
-      const snippet = '< > </ >';
-      codeEl.setRangeText(snippet, start, end, 'preserve');
-      codeEl.selectionStart = start + 1;
-      codeEl.selectionEnd = start + 2; // highlights the blank space inside first tag
-      codeEl.focus();
-      codeEl.dispatchEvent(new Event('input', { bubbles: true }));
-      return;
-    }
-
-    const snippet = `<${cleanTag}></${cleanTag}>`;
-    codeEl.setRangeText(snippet, start, end, 'preserve');
-    // place cursor right inside the tag: <tag>|</tag>
-    codeEl.selectionStart = codeEl.selectionEnd = start + cleanTag.length + 2;
-    codeEl.focus();
-    codeEl.dispatchEvent(new Event('input', { bubbles: true }));
-  };
-
-  const handleOpenTagTool = () => {
-    setTagToolOpen((prev) => {
-      const nextState = !prev;
-      if (nextState) {
-        // First show first blank!
-        setEnteredTagValue('');
-        setTimeout(() => {
-          tagInputRef.current?.focus();
-          tagInputRef.current?.select();
-        }, 50);
-      }
-      return nextState;
-    });
-  };
 
   const workContainerRef = useRef<HTMLDivElement>(null);
   const [codebaseWidth, setCodebaseWidth] = useState<number>(() => {
@@ -206,645 +115,6 @@ export default function App() {
       setCodebaseWidth(30);
     }
   };
-
-  // Classroom Live State
-  const [currentUser, setCurrentUser] = useState<ClassroomUser | null>(() => {
-    return classroomSync.getCurrentUser();
-  });
-  const currentUserRef = useRef<ClassroomUser | null>(currentUser);
-  useEffect(() => {
-    currentUserRef.current = currentUser;
-  }, [currentUser]);
-
-  // View Navigation Mode when not logged in: 'landing' or 'login'
-  const [viewMode, setViewMode] = useState<'landing' | 'login'>('landing');
-  const [loginInitialRole, setLoginInitialRole] = useState<'student' | 'teacher'>('student');
-  const [detectedTeacherClass, setDetectedTeacherClass] = useState<{
-    classCode: string;
-    teacherName: string;
-  } | null>(null);
-
-  useEffect(() => {
-    const active = classroomSync.getActiveTeacherClass();
-    if (active) setDetectedTeacherClass(active);
-    insforgeService
-      .fetchLatestActiveClass()
-      .then((cloud) => {
-        if (cloud) {
-          setDetectedTeacherClass({ classCode: cloud.classCode, teacherName: cloud.teacherName });
-        }
-      })
-      .catch(() => {});
-  }, []);
-
-  const handleLaunchSandbox = () => {
-    const sandboxUser: ClassroomUser = {
-      sessionId: 'SANDBOX-EXPLORER',
-      role: 'teacher',
-      username: 'Visualizer Explorer',
-      classCode: 'SANDBOX',
-      joinedAt: Date.now(),
-      cameraActive: false,
-      micActive: false,
-      avatarColor: '#38bdf8',
-      lastPing: Date.now(),
-    };
-    handleLoginSuccess(sandboxUser, null);
-  };
-
-  const [peers, setPeers] = useState<ClassroomUser[]>([]);
-  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
-  const [cameraActive, setCameraActive] = useState<boolean>(true);
-  const [micActive, setMicActive] = useState<boolean>(true);
-  const [isVideoTilesOpen, setIsVideoTilesOpen] = useState<boolean>(false);
-  const [isConversationOpen, setIsConversationOpen] = useState<boolean>(false);
-  const [isStudentDashboardOpen, setIsStudentDashboardOpen] = useState<boolean>(false);
-  const [remoteStreams, setRemoteStreams] = useState<Map<string, MediaStream>>(new Map());
-  const [speakingMap, setSpeakingMap] = useState<Record<string, boolean>>({});
-  const [latestTeacherActionNotice, setLatestTeacherActionNotice] = useState<string>('');
-
-  // Live session duration timer for student
-  const [sessionDurationStr, setSessionDurationStr] = useState<string>('00:00');
-  useEffect(() => {
-    if (!currentUser?.joinedAt) return;
-    const calc = () => {
-      const sec = Math.max(0, Math.floor((Date.now() - currentUser.joinedAt) / 1000));
-      const m = Math.floor(sec / 60);
-      const s = sec % 60;
-      const h = Math.floor(sec / 3600);
-      const pad = (n: number) => n.toString().padStart(2, '0');
-      setSessionDurationStr(h > 0 ? `${pad(h)}:${pad(m % 60)}:${pad(s)}` : `${pad(m)}:${pad(s)}`);
-    };
-    calc();
-    const t = setInterval(calc, 1000);
-    return () => clearInterval(t);
-  }, [currentUser?.joinedAt]);
-
-  // Default to student View Screen Only mode!
-  const [studentViewOnly, setStudentViewOnly] = useState<boolean>(true);
-  const studentViewOnlyRef = useRef<boolean>(true);
-  useEffect(() => {
-    studentViewOnlyRef.current = studentViewOnly;
-  }, [studentViewOnly]);
-
-  // Hide Navbar / Header for maximum visualizer screen space
-  const [isHeaderHidden, setIsHeaderHidden] = useState<boolean>(false);
-
-  // Student collaborative live coding / presenter mode (any student can code & visualize for everyone)
-  const [isStudentPresenting, setIsStudentPresenting] = useState<boolean>(false);
-  const isStudentPresentingRef = useRef<boolean>(false);
-  useEffect(() => {
-    isStudentPresentingRef.current = isStudentPresenting;
-  }, [isStudentPresenting]);
-
-  const [isOpenCodingEnabled, setIsOpenCodingEnabled] = useState<boolean>(true);
-  const [activePresenterName, setActivePresenterName] = useState<string | null>(null);
-  const [activePresenterSessionId, setActivePresenterSessionId] = useState<string | null>(null);
-
-  // Automatic Lecture Recording states (Screen + WebCam PiP & Auto Lecture Video)
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [recordingDuration, setRecordingDuration] = useState<number>(0);
-  const [recordingDurationStr, setRecordingDurationStr] = useState<string>('00:00');
-  const recordingDurationStrRef = useRef<string>('00:00');
-  const [recordingMode, setRecordingMode] = useState<'lecture_composite' | 'screen_only' | 'camera_only'>('lecture_composite');
-  const [lectureChaptersCount, setLectureChaptersCount] = useState<number>(0);
-  const [recordedLectureResult, setRecordedLectureResult] = useState<LectureResult | null>(null);
-  const [recordedVideoModal, setRecordedVideoModal] = useState<{
-    url: string;
-    blob: Blob;
-    filename: string;
-    durationStr: string;
-    sizeMb: string;
-  } | null>(null);
-
-  // Subscribe to lectureRecorder real-time duration and events
-  useEffect(() => {
-    const unsubDuration = lectureRecorder.onDurationUpdate((sec, str) => {
-      setRecordingDuration(sec);
-      setRecordingDurationStr(str);
-      recordingDurationStrRef.current = str;
-    });
-
-    const unsubChapter = lectureRecorder.onChapterAdded(() => {
-      setLectureChaptersCount(lectureRecorder.getChapters().length);
-    });
-
-    const unsubFinished = lectureRecorder.onFinished((result) => {
-      setIsRecording(false);
-      setRecordedLectureResult(result);
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `🎓 <b>Lecture Video Saved:</b> <i>${result.topicTitle}</i> downloaded (${result.durationStr}, ${result.sizeMb} MB) with ${result.chapters.length} auto-tracked chapters!`;
-      }
-    });
-
-    return () => {
-      unsubDuration();
-      unsubChapter();
-      unsubFinished();
-    };
-  }, []);
-
-  // Keyboard shortcut: Press H (when not typing in editor) to toggle Header Navbar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || (e.target as HTMLElement)?.isContentEditable) {
-        return;
-      }
-      if (e.key === 'h' || e.key === 'H') {
-        setIsHeaderHidden((prev) => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const [teacherHasNewCode, setTeacherHasNewCode] = useState<boolean>(false);
-  const [, setLatestTeacherCode] = useState<string>('');
-  const [autoSyncWithTeacher, setAutoSyncWithTeacher] = useState<boolean>(true);
-
-  // Synchronized trigger refs for teacher actions
-  const triggerRunRef = useRef<(src?: string) => void>(() => {});
-  const triggerStepRef = useRef<(src?: string) => void>(() => {});
-  const triggerResetRef = useRef<() => void>(() => {});
-  const triggerSelectExampleRef = useRef<(index: string) => void>(() => {});
-  const triggerSetCodeRef = useRef<(newCode: string) => void>(() => {});
-
-  // WebRTC Audio/Video & Voice Activity
-  useEffect(() => {
-    if (currentUser) {
-      webRTCService.init(currentUser, mediaStream);
-      const unsubRemote = webRTCService.onRemoteStreamsChange((map) => {
-        setRemoteStreams(new Map(map));
-      });
-      const unsubSpeaking = webRTCService.onSpeakingChange((map) => {
-        setSpeakingMap({ ...map });
-      });
-      return () => {
-        unsubRemote();
-        unsubSpeaking();
-      };
-    }
-  }, [currentUser]);
-
-  useEffect(() => {
-    if (mediaStream) {
-      webRTCService.updateLocalStream(mediaStream);
-    }
-  }, [mediaStream]);
-
-  useEffect(() => {
-    if (currentUser && peers.length > 0) {
-      peers.forEach((peer) => {
-        if (peer.sessionId !== currentUser.sessionId) {
-          webRTCService.connectToPeer(peer.sessionId);
-        }
-      });
-    }
-  }, [peers, currentUser]);
-
-  // Sync peer directory and incoming teacher broadcasts
-  useEffect(() => {
-    const unsubPeers = classroomSync.onPeersChange((activePeers) => {
-      setPeers(activePeers);
-    });
-
-    const unsubMsg = classroomSync.onMessage((msg) => {
-      if (msg.action === 'code_broadcast' && msg.code) {
-        setLatestTeacherCode(msg.code);
-        const current = classroomSync.getCurrentUser();
-        if (current && current.role === 'student') {
-          triggerSetCodeRef.current(msg.code);
-          setTeacherHasNewCode(false);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `📡 <b>Teacher Live Screen Synced:</b> Code from <b>${msg.sender.username}</b> loaded live!`;
-          }
-        }
-      }
-    });
-
-    // Listen to real-time teacher and student presenter actions (Run, Step, Reset, Switch Tab, Select Example)
-    const unsubActions = classroomSync.onTeacherAction((action, sender) => {
-      const current = classroomSync.getCurrentUser();
-      // Ignore if I am the one who triggered this action locally
-      if (current && sender && sender.sessionId === current.sessionId) {
-        return;
-      }
-      if (current && action.teacherName === current.username) {
-        return;
-      }
-
-      const actionLabels: Record<string, string> = {
-        run: 'Ran Code ▶',
-        step: 'Stepped Line ⏭',
-        reset: 'Reset Code ↺',
-        select_example: 'Selected Example 📚',
-        switch_tab: `Switched Tab (${action.tab}) 📑`,
-        clear_output: 'Cleared Output ⌫',
-      };
-      setLatestTeacherActionNotice(`${action.teacherName}: ${actionLabels[action.type] || action.type}`);
-      setTimeout(() => setLatestTeacherActionNotice(''), 3500);
-
-      if (action.type === 'run') {
-        if (action.code !== undefined) {
-          triggerSetCodeRef.current(action.code);
-        }
-        triggerRunRef.current(action.code);
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> ran the code! Executing live on your screen.`;
-        }
-      } else if (action.type === 'step') {
-        if (action.code !== undefined) {
-          triggerSetCodeRef.current(action.code);
-        }
-        triggerStepRef.current(action.code);
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> stepped forward! Visualizer state mirrored.`;
-        }
-      } else if (action.type === 'reset') {
-        triggerResetRef.current();
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> reset execution.`;
-        }
-      } else if (action.type === 'select_example' && action.exampleIndex !== undefined) {
-        triggerSelectExampleRef.current(action.exampleIndex);
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `👁️ <b>Live Screen Mirror:</b> <b>${action.teacherName}</b> switched to curriculum example!`;
-        }
-      } else if (action.type === 'switch_tab' && action.tab) {
-        setActiveTab(action.tab);
-      } else if (action.type === 'clear_output') {
-        const screenEl = document.getElementById('screen');
-        if (screenEl) screenEl.innerHTML = '';
-      } else if (action.type === 'speed_change' && action.speed !== undefined) {
-        const spdInput = document.getElementById('spd') as HTMLInputElement;
-        if (spdInput) {
-          spdInput.value = String(action.speed);
-          spdInput.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-      }
-    });
-
-    // Real-time code typing broadcast by teacher or presenting student
-    const unsubCode = classroomSync.onCodeChange((code, sender) => {
-      const current = classroomSync.getCurrentUser();
-      if (current && sender && sender.sessionId === current.sessionId) {
-        return;
-      }
-      triggerSetCodeRef.current(code);
-    });
-
-    // Listen to presenter changes (when a student takes stage to code & visualize to everyone)
-    const unsubPresenter = classroomSync.onPresenterChange((info) => {
-      if (info.presenterSessionId && info.presenterName && info.presenterRole === 'student') {
-        setActivePresenterName(info.presenterName);
-        setActivePresenterSessionId(info.presenterSessionId);
-        if (currentUserRef.current?.sessionId !== info.presenterSessionId) {
-          setIsStudentPresenting(false);
-          if (currentUserRef.current?.role === 'student') {
-            setStudentViewOnly(true);
-          }
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `📡 <b>Student Presenter Active:</b> <b>${info.presenterName}</b> is now live coding and visualizing for everyone!`;
-          }
-        }
-      } else {
-        setActivePresenterName(null);
-        setActivePresenterSessionId(null);
-        if (currentUserRef.current?.role === 'student') {
-          setIsStudentPresenting(false);
-          setStudentViewOnly(true);
-        }
-      }
-    });
-
-    // Listen to remote media control (Teacher can close student mics and cameras)
-    const unsubRemoteMedia = classroomSync.onRemoteMediaControl((target, state) => {
-      if (currentUserRef.current?.role === 'student') {
-        if (target === 'mic' || target === 'both') {
-          setMicActive(state);
-          if (mediaStream) {
-            mediaStream.getAudioTracks().forEach((t) => (t.enabled = state));
-          }
-        }
-        if (target === 'camera' || target === 'both') {
-          setCameraActive(state);
-          if (mediaStream) {
-            mediaStream.getVideoTracks().forEach((t) => (t.enabled = state));
-          }
-        }
-        classroomSync.updateMediaStatus(
-          target === 'mic' ? cameraActive : state,
-          target === 'camera' ? micActive : state
-        );
-        const sayEl = document.getElementById('say');
-        if (sayEl) {
-          sayEl.innerHTML = `🔇 <b>Classroom Notice:</b> Teacher turned ${state ? 'on' : 'off'} student ${target === 'both' ? 'microphones & cameras' : target}.`;
-        }
-      }
-    });
-
-    // Initial check for latest teacher code from cloud DB and localStorage
-    if (currentUser && currentUser.role === 'student') {
-      classroomSync.fetchLatestTeacherCode(currentUser.classCode).then((latest) => {
-        if (latest && latest.code) {
-          setLatestTeacherCode(latest.code);
-          triggerSetCodeRef.current(latest.code);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `📡 <b>Teacher Screen Mirrored:</b> Connected to <b>${latest.teacherName}</b>! Code loaded automatically.`;
-          }
-        }
-      });
-      // Fire immediate cloud synchronization
-      classroomSync.syncImmediately();
-    }
-
-    return () => {
-      unsubPeers();
-      unsubMsg();
-      unsubActions();
-      unsubCode();
-      unsubPresenter();
-      unsubRemoteMedia();
-    };
-  }, [currentUser]);
-
-  const handleTeacherBroadcast = () => {
-    const codeEl = document.getElementById('code') as HTMLTextAreaElement;
-    const currentCode = codeEl ? codeEl.value : '';
-    classroomSync.broadcastCode(currentCode);
-    const sayEl = document.getElementById('say');
-    if (sayEl) {
-      sayEl.innerHTML = `📡 <b>Live Broadcast Sent:</b> Teacher code broadcasted to all connected student windows live!`;
-    }
-  };
-
-  const handleLoadTeacherCode = () => {
-    const latest = classroomSync.getLatestTeacherCode(currentUser?.classCode);
-    if (latest && latest.code) {
-      const codeEl = document.getElementById('code') as HTMLTextAreaElement;
-      if (codeEl) {
-        codeEl.value = latest.code;
-        codeEl.dispatchEvent(new Event('input', { bubbles: true }));
-      }
-      setTeacherHasNewCode(false);
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `📥 <b>Teacher Code Loaded:</b> Broadcast from <b>${latest.teacherName}</b> loaded. You can modify it, run it, and experiment with it freely!`;
-      }
-    }
-  };
-
-  const handleToggleCamera = () => {
-    if (mediaStream) {
-      const vTracks = mediaStream.getVideoTracks();
-      vTracks.forEach((t) => (t.enabled = !cameraActive));
-    }
-    const nextState = !cameraActive;
-    setCameraActive(nextState);
-    classroomSync.updateMediaStatus(nextState, micActive);
-  };
-
-  const handleToggleMic = () => {
-    if (mediaStream) {
-      const aTracks = mediaStream.getAudioTracks();
-      aTracks.forEach((t) => (t.enabled = !micActive));
-    }
-    const nextState = !micActive;
-    setMicActive(nextState);
-    classroomSync.updateMediaStatus(cameraActive, nextState);
-  };
-
-  // Student toggle to take stage: any student can code and visualize for everyone
-  const handleToggleStudentPresenting = () => {
-    if (!currentUser) return;
-    if (isStudentPresenting) {
-      // Stop presenting -> return to view mode
-      setIsStudentPresenting(false);
-      setStudentViewOnly(true);
-      setActivePresenterName(null);
-      setActivePresenterSessionId(null);
-      classroomSync.broadcastPresenterChange('', '', 'teacher');
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `👁️ <b>Returned to View Mode:</b> You stopped presenting. Now following Teacher.`;
-      }
-    } else {
-      // Start presenting -> unlock code & broadcast to everyone!
-      setIsStudentPresenting(true);
-      setStudentViewOnly(false);
-      setActivePresenterName(currentUser.username);
-      setActivePresenterSessionId(currentUser.sessionId);
-      classroomSync.broadcastPresenterChange(currentUser.sessionId, currentUser.username, 'student');
-      const codeEl = document.getElementById('code') as HTMLTextAreaElement;
-      if (codeEl) {
-        classroomSync.broadcastCodeChange(codeEl.value);
-      }
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `🚀 <b>Live Coding Stage Active:</b> You are now live! Any code you write, run, or step will mirror live on everyone's screen.`;
-      }
-    }
-  };
-
-  // Teacher takes back presentation stage
-  const handleTakeBackStage = () => {
-    if (!currentUser || currentUser.role !== 'teacher') return;
-    setActivePresenterName(null);
-    setActivePresenterSessionId(null);
-    classroomSync.broadcastPresenterChange(currentUser.sessionId, currentUser.username, 'teacher');
-    const sayEl = document.getElementById('say');
-    if (sayEl) {
-      sayEl.innerHTML = `👑 <b>Stage Returned to Teacher:</b> You have taken back the presentation stage.`;
-    }
-  };
-
-  // Teacher Quick Button: Close both mic and camera with 1 click
-  const handleCloseBothMedia = () => {
-    if (mediaStream) {
-      mediaStream.getVideoTracks().forEach((t) => (t.enabled = false));
-      mediaStream.getAudioTracks().forEach((t) => (t.enabled = false));
-    }
-    setCameraActive(false);
-    setMicActive(false);
-    classroomSync.updateMediaStatus(false, false);
-    const sayEl = document.getElementById('say');
-    if (sayEl) {
-      sayEl.innerHTML = `🔇 <b>Camera & Microphone Closed:</b> Both camera and microphone turned off.`;
-    }
-  };
-
-  // Teacher Quick Button: Remotely mute all students
-  const handleTeacherMuteAllStudents = () => {
-    classroomSync.broadcastRemoteMediaControl('both', false);
-    const sayEl = document.getElementById('say');
-    if (sayEl) {
-      sayEl.innerHTML = `🔇 <b>Muted All Students:</b> Signal sent to turn off all students' microphones & cameras.`;
-    }
-  };
-
-  // Lecture Recording: Record Screen + WebCam PiP, mixed audio, automatic chapters & lecture video
-  const handleStartLectureRecording = async (mode: 'lecture_composite' | 'screen_only' | 'camera_only' = 'lecture_composite') => {
-    if (isRecording) {
-      await handleStopLectureRecording();
-      return;
-    }
-
-    try {
-      setRecordingMode(mode);
-      const codeEl = document.getElementById('code') as HTMLTextAreaElement | null;
-      const initialCode = codeEl?.value || '';
-
-      // Topic title detection
-      let topic = 'Python Programming Lecture';
-      if (initialCode.includes('def ')) {
-        topic = 'Python: Functions & Execution Tracing';
-      } else if (initialCode.includes('for ') || initialCode.includes('while ')) {
-        topic = 'Python: Loops & Iterations';
-      } else if (initialCode.includes('import turtle') || initialCode.includes('turtle.')) {
-        topic = 'Python: Turtle Visual Canvas';
-      } else if (initialCode.includes('class ')) {
-        topic = 'Python: Object-Oriented Programming';
-      }
-
-      await lectureRecorder.startRecording({
-        instructorName: currentUser?.username || 'Instructor',
-        classCode: currentUser?.classCode || 'STUDIO',
-        topicTitle: topic,
-        mode,
-        webcamStream: mediaStream,
-      });
-
-      if (initialCode) {
-        lectureRecorder.recordCodeSnapshot(initialCode);
-      }
-
-      setIsRecording(true);
-      setRecordingDuration(0);
-      setRecordingDurationStr('00:00');
-      recordingDurationStrRef.current = '00:00';
-      setLectureChaptersCount(lectureRecorder.getChapters().length);
-
-      const modeLabel = mode === 'lecture_composite'
-        ? 'Screen + WebCam PiP'
-        : mode === 'screen_only'
-        ? 'Screen Only'
-        : 'WebCam Only';
-
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `🔴 <b>Lecture Recording Active (${modeLabel}):</b> Recording live lecture. Run code, visualize, and step through scripts — chapters & notes are tracked automatically! Click REC to stop & finalize.`;
-      }
-    } catch (err: any) {
-      console.error('Lecture recording start error:', err);
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `⚠️ <b>Recording Error:</b> ${err.message || 'Permission denied or screen sharing cancelled.'}`;
-      }
-    }
-  };
-
-  const handleStopLectureRecording = async () => {
-    if (!lectureRecorder.isRecording()) {
-      setIsRecording(false);
-      return;
-    }
-
-    try {
-      const result = await lectureRecorder.stopRecording();
-      setIsRecording(false);
-      setRecordedLectureResult(result);
-    } catch (err) {
-      console.error('Error stopping lecture recording:', err);
-      setIsRecording(false);
-    }
-  };
-
-  const handleToggleRecording = () => {
-    if (isRecording) {
-      handleStopLectureRecording();
-    } else {
-      handleStartLectureRecording('lecture_composite');
-    }
-  };
-
-  const handleLogout = () => {
-    if (lectureRecorder.isRecording()) {
-      lectureRecorder.stopRecording().catch(() => {});
-    }
-    classroomSync.endSession();
-    if (mediaStream) {
-      mediaStream.getTracks().forEach((t) => t.stop());
-      setMediaStream(null);
-    }
-    setCurrentUser(null);
-    setViewMode('landing');
-    const sayEl = document.getElementById('say');
-    if (sayEl) {
-      sayEl.innerHTML = `👋 <b>Session Ended:</b> You have explicitly ended your classroom session. Enter a class code or host a new session to reconnect.`;
-    }
-  };
-
-  // Re-acquire media stream and announce restored session after page refresh
-  useEffect(() => {
-    if (currentUser) {
-      const sayEl = document.getElementById('say');
-      if (sayEl) {
-        sayEl.innerHTML = `🔄 <b>Session Active:</b> Reconnected to room (Class: <b>${currentUser.classCode}</b>). Session stays active across page refreshes until you click <b>"End Session"</b>.`;
-      }
-
-      if ((currentUser.cameraActive || currentUser.micActive) && !mediaStream) {
-        navigator.mediaDevices?.getUserMedia({
-          video: currentUser.cameraActive ? { facingMode: 'user' } : false,
-          audio: currentUser.micActive,
-        })
-          .then((stream) => {
-            setMediaStream(stream);
-          })
-          .catch((err) => {
-            console.log('Autorestore media permissions on reload:', err);
-          });
-      }
-    }
-  }, []);
-
-  const handleLoginSuccess = (user: ClassroomUser, stream: MediaStream | null) => {
-    webRTCService.resumeAudioContext();
-    classroomSync.initUser(user.role, user.username, user.classCode, user.cameraActive, user.micActive);
-    setCurrentUser(user);
-    if (stream) {
-      setMediaStream(stream);
-      setCameraActive(user.cameraActive);
-      setMicActive(user.micActive);
-    }
-    setIsVideoTilesOpen(true);
-    if (user.role === 'student') {
-      setIsStudentDashboardOpen(true);
-      classroomSync.fetchLatestTeacherCode(user.classCode).then((latest) => {
-        if (latest && latest.code) {
-          setLatestTeacherCode(latest.code);
-          triggerSetCodeRef.current(latest.code);
-          const sayEl = document.getElementById('say');
-          if (sayEl) {
-            sayEl.innerHTML = `📡 <b>Teacher Screen Mirrored:</b> Connected to <b>${latest.teacherName}</b>! Teacher code loaded automatically.`;
-          }
-        }
-      });
-      classroomSync.syncImmediately();
-    }
-  };
-
-  useEffect(() => {
-    autoTagCloserRef.current = autoTagCloser;
-  }, [autoTagCloser]);
 
   useEffect(() => {
     memHistoryOnRef.current = memHistoryOn;
@@ -2871,11 +2141,6 @@ export default function App() {
         exSelect.append(o);
       });
       exSelect.onchange = () => {
-        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
-        if (isStudentLocked) {
-          say_('👁️ <b>View Only Mode:</b> Curriculum examples controlled by active presenter. Click <b>"Code & Visualize for Everyone"</b> above to take the stage!');
-          return;
-        }
         const i = exSelect.value;
         if (i === '') return;
         code.value = U[+i][2];
@@ -2884,22 +2149,6 @@ export default function App() {
         reset();
         drawGut();
         say_('**Goal:** ' + U[+i][1]);
-
-        if (lectureRecorder.isRecording()) {
-          const title = U[+i]?.[0] || 'Example';
-          lectureRecorder.addChapter(`Curriculum: ${title}`, U[+i]?.[1], 'example');
-          lectureRecorder.recordCodeSnapshot(code.value);
-        }
-
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'select_example',
-            exampleIndex: i,
-            code: code.value,
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
       };
     }
 
@@ -3018,12 +2267,6 @@ export default function App() {
       auto = m === 'step';
       running = true;
 
-      if (lectureRecorder.isRecording()) {
-        const actionLabel = m === 'step' ? 'Stepping through code' : 'Executed Python script';
-        lectureRecorder.addChapter(actionLabel, src.slice(0, 65).replace(/\n/g, ' '), m === 'step' ? 'step' : 'run');
-        lectureRecorder.recordCodeSnapshot(src);
-      }
-
       out('python main.py', '\n', false, true);
       try {
         const prog = parseProgram(src);
@@ -3047,72 +2290,9 @@ export default function App() {
       }
     }
 
-    // Expose trigger refs for remote student screen mirroring
-    triggerRunRef.current = (src?: string) => {
-      const codeToRun = src !== undefined ? src : code.value;
-      if (code.value !== codeToRun) {
-        code.value = codeToRun;
-        updateHighlight();
-        drawGut();
-      }
-      start('run', codeToRun);
-    };
-
-    triggerStepRef.current = (src?: string) => {
-      if (src !== undefined && code.value !== src) {
-        code.value = src;
-        updateHighlight();
-        drawGut();
-      }
-      if (running) {
-        mode = 'step';
-        if (wait) wait();
-      } else {
-        start('step', code.value);
-      }
-    };
-
-    triggerResetRef.current = () => {
-      reset();
-    };
-
-    triggerSelectExampleRef.current = (index: string) => {
-      if (exSelect) {
-        exSelect.value = index;
-        if (index !== '' && U[+index]) {
-          code.value = U[+index][2];
-          updateHighlight();
-          reset();
-          drawGut();
-          say_('**Goal:** ' + U[+index][1]);
-        }
-      }
-    };
-
-    triggerSetCodeRef.current = (newCode: string) => {
-      if (code.value !== newCode) {
-        code.value = newCode;
-        updateHighlight();
-        drawGut();
-      }
-    };
-
     const runBtn = $('#run');
     if (runBtn) {
       runBtn.onclick = () => {
-        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
-        if (isStudentLocked) {
-          say_('👁️ <b>View Screen Only:</b> You are following the live broadcast. Click <b>"Code & Visualize for Everyone"</b> above to take the stage and code live!');
-          return;
-        }
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'run',
-            code: code.value,
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
         if (running) {
           mode = 'run';
           if (wait) wait();
@@ -3150,32 +2330,12 @@ export default function App() {
       clrBtn.onclick = () => {
         screen.innerHTML = '';
         curSpan = null;
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'clear_output',
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
       };
     }
 
     const stepBtn = $('#step');
     if (stepBtn) {
       stepBtn.onclick = () => {
-        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
-        if (isStudentLocked) {
-          say_('👁️ <b>View Screen Only:</b> Stepping is controlled by the active presenter. Click <b>"Code & Visualize for Everyone"</b> above to take the stage!');
-          return;
-        }
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'step',
-            code: code.value,
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
         if (running) {
           mode = 'step';
           if (wait) wait();
@@ -3188,33 +2348,7 @@ export default function App() {
     const resetBtn = $('#reset');
     if (resetBtn) {
       resetBtn.onclick = () => {
-        const isStudentLocked = currentUserRef.current?.role === 'student' && studentViewOnlyRef.current && !isStudentPresentingRef.current;
-        if (isStudentLocked) {
-          say_('👁️ <b>View Screen Only:</b> Controlled by active presenter.');
-          return;
-        }
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'reset',
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
         reset();
-      };
-    }
-
-    const spdInput = $('#spd') as HTMLInputElement;
-    if (spdInput) {
-      spdInput.oninput = () => {
-        if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-          classroomSync.broadcastTeacherAction({
-            type: 'speed_change',
-            speed: +spdInput.value,
-            teacherName: currentUserRef.current?.username || 'Presenter',
-            timestamp: Date.now(),
-          });
-        }
       };
     }
 
@@ -3235,16 +2369,9 @@ export default function App() {
       reset();
       drawGut();
       try {
-        const sid = sessionStorage.getItem('classroom_window_session_id');
-        if (sid) {
-          localStorage.setItem(`classroom_saved_code_${sid}`, code.value);
-        }
+        localStorage.setItem('python_visualizer_saved_code', code.value);
       } catch {
         // ignore
-      }
-
-      if (currentUserRef.current?.role === 'teacher' || isStudentPresentingRef.current) {
-        classroomSync.broadcastCodeChange(code.value);
       }
     };
 
@@ -3459,8 +2586,7 @@ export default function App() {
 
     let initialCode = DEFAULT;
     try {
-      const sid = sessionStorage.getItem('classroom_window_session_id');
-      const saved = sid ? localStorage.getItem(`classroom_saved_code_${sid}`) : null;
+      const saved = localStorage.getItem('python_visualizer_saved_code');
       if (saved !== null && saved !== undefined && saved.length > 0) {
         initialCode = saved;
       }
@@ -3482,247 +2608,39 @@ export default function App() {
 
   const handleTabClick = (tab: 'terminal' | 'trace' | 'turtle') => {
     setActiveTab(tab);
-    if (currentUser?.role === 'teacher') {
-      classroomSync.broadcastTeacherAction({
-        type: 'switch_tab',
-        tab,
-        teacherName: currentUser.username,
-        timestamp: Date.now(),
-      });
-    }
   };
 
-  const isStudent = currentUser?.role === 'student';
-  const isTeacher = currentUser?.role === 'teacher';
-
   return (
-    <>
-      {/* Landing Page (Shown when user arrives or logs out) */}
-      {!currentUser && viewMode === 'landing' && (
-        <LandingPage
-          onOpenLogin={(role) => {
-            setLoginInitialRole(role || 'student');
-            setViewMode('login');
-          }}
-          onLaunchSandbox={handleLaunchSandbox}
-          activeTeacherClass={detectedTeacherClass}
-        />
-      )}
-
-      {/* Login & Join Classroom Page */}
-      {!currentUser && viewMode === 'login' && (
-        <ClassroomLoginModal
-          onLoginSuccess={handleLoginSuccess}
-          onBackToLanding={() => setViewMode('landing')}
-          onQuickSandbox={handleLaunchSandbox}
-          initialRole={loginInitialRole}
-          isFullPage={true}
-        />
-      )}
-
-      <div
-        ref={containerRef}
-        className={`app ${hideScrollbars ? 'hide-scrollbars' : 'show-scrollbars'}`}
-        style={!currentUser ? { display: 'none' } : undefined}
-      >
-        {/* Main Classroom Header Bar: can be hidden with hide button for best visuals */}
-        {currentUser && !isHeaderHidden && (
-          <ClassroomHeaderBar
-            currentUser={currentUser}
-            peers={peers}
-            cameraActive={cameraActive}
-            micActive={micActive}
-            onToggleCamera={handleToggleCamera}
-            onToggleMic={handleToggleMic}
-            onCloseBothMedia={handleCloseBothMedia}
-            onTeacherMuteAllStudents={handleTeacherMuteAllStudents}
-            onBroadcastCode={handleTeacherBroadcast}
-            onLoadTeacherCode={handleLoadTeacherCode}
-            teacherHasNewCode={teacherHasNewCode}
-            autoSyncWithTeacher={autoSyncWithTeacher}
-            onToggleAutoSync={() => setAutoSyncWithTeacher((prev) => !prev)}
-            onLogout={handleLogout}
-            onToggleVideoTiles={() => setIsVideoTilesOpen((prev) => !prev)}
-            isVideoTilesOpen={isVideoTilesOpen}
-            isConversationOpen={isConversationOpen}
-            onToggleConversation={() => setIsConversationOpen((prev) => !prev)}
-            latestTeacherActionNotice={latestTeacherActionNotice}
-            onToggleDashboard={() => setIsStudentDashboardOpen((prev) => !prev)}
-            isDashboardOpen={isStudentDashboardOpen}
-            onHideHeader={() => setIsHeaderHidden(true)}
-            isStudentPresenting={isStudentPresenting}
-            onToggleStudentPresenting={handleToggleStudentPresenting}
-            isOpenCodingEnabled={isOpenCodingEnabled}
-            onToggleOpenCoding={() => setIsOpenCodingEnabled((prev) => !prev)}
-            activePresenterName={activePresenterName}
-            isRecording={isRecording}
-            recordingDurationStr={recordingDurationStr}
-            onToggleRecording={handleToggleRecording}
-            recordingMode={recordingMode}
-            lectureChaptersCount={lectureChaptersCount}
-            onStartLectureRecording={handleStartLectureRecording}
-          />
-        )}
-
-        {/* Floating Quick Navbar Control when header is hidden (Icons Only with White Icons) */}
-        {currentUser && isHeaderHidden && (
-          <div className="fixed top-2.5 right-3 z-50 flex items-center gap-1.5 bg-[#0b1328]/95 backdrop-blur-md border border-slate-700/80 p-1.5 rounded-full shadow-2xl animate-in fade-in slide-in-from-top-2 text-xs">
-            <button
-              type="button"
-              onClick={() => setIsHeaderHidden(false)}
-              className="w-7 h-7 rounded-full bg-sky-500 hover:bg-sky-400 text-white flex items-center justify-center shadow-sm transition-all flex-shrink-0"
-              title="Show Header Navbar (Shortcut: Press H or click)"
-            >
-              <Eye className="w-3.5 h-3.5 text-white" />
-            </button>
-
-            {/* Quick Automatic Lecture Recording Button */}
-            {isRecording ? (
-              <button
-                type="button"
-                onClick={handleToggleRecording}
-                className="w-7 h-7 rounded-full bg-rose-600 hover:bg-rose-500 text-white flex items-center justify-center animate-pulse flex-shrink-0"
-                title={`Lecture Recording in progress (${recordingDurationStr}) — Click to stop, auto-generate notes & download video`}
-              >
-                <Square className="w-3 h-3 fill-white text-white" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => handleStartLectureRecording('lecture_composite')}
-                className="w-7 h-7 rounded-full bg-gradient-to-r from-cyan-600 to-sky-600 hover:from-cyan-500 hover:to-sky-500 text-white flex items-center justify-center shadow-sm flex-shrink-0"
-                title="Record Screen and Web Cam simultaneously to create automatic lecture video"
-              >
-                <Film className="w-3 h-3 text-white" />
-              </button>
-            )}
-
-            {/* Quick Mic toggle */}
-            <button
-              type="button"
-              onClick={handleToggleMic}
-              className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
-                micActive ? 'bg-slate-800 text-white border-slate-700' : 'bg-rose-500/20 text-white border-rose-500/40'
-              }`}
-              title={micActive ? 'Close Microphone' : 'Turn Microphone On'}
-            >
-              {micActive ? <Mic className="w-3.5 h-3.5 text-white" /> : <MicOff className="w-3.5 h-3.5 text-white" />}
-            </button>
-
-            {/* Quick Cam toggle */}
-            <button
-              type="button"
-              onClick={handleToggleCamera}
-              className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors flex-shrink-0 ${
-                cameraActive ? 'bg-slate-800 text-white border-slate-700' : 'bg-rose-500/20 text-white border-rose-500/40'
-              }`}
-              title={cameraActive ? 'Close Camera' : 'Turn Camera On'}
-            >
-              {cameraActive ? <Video className="w-3.5 h-3.5 text-white" /> : <VideoOff className="w-3.5 h-3.5 text-white" />}
-            </button>
-
-            {/* Quick Student Coding Toggle */}
-            {isStudent && (
-              <button
-                type="button"
-                onClick={handleToggleStudentPresenting}
-                className={`w-7 h-7 rounded-full flex items-center justify-center transition-all flex-shrink-0 ${
-                  isStudentPresenting
-                    ? 'bg-amber-500 text-white ring-2 ring-amber-400'
-                    : 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                }`}
-                title={isStudentPresenting ? 'Stop sharing stage' : 'Code & Visualize to Everyone'}
-              >
-                <Code2 className="w-3 h-3 text-white" />
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Subtle Presenter Bar (Shown only if a student is actively presenting to class) */}
-        {activePresenterName && !isHeaderHidden && (
-          <div className="bg-[#0b192e] border-b border-emerald-500/40 px-3 py-1 flex items-center justify-between text-[11px] text-slate-200 shadow-xs z-20">
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-white animate-ping flex-shrink-0" />
-              <Radio className="w-4 h-4 text-white animate-spin flex-shrink-0" />
-              <span className="font-semibold text-white">
-                {isStudentPresenting
-                  ? 'You are Live Presenting to Class'
-                  : `Student ${activePresenterName} is Live Presenting`}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {isStudentPresenting ? (
-                <button
-                  type="button"
-                  onClick={handleToggleStudentPresenting}
-                  className="p-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold text-[10px] shadow-xs flex items-center justify-center"
-                  title="Stop Sharing Stage"
-                >
-                  <Square className="w-3 h-3 fill-white text-white" />
-                </button>
-              ) : isTeacher ? (
-                <button
-                  type="button"
-                  onClick={handleTakeBackStage}
-                  className="p-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold text-[10px] shadow-xs flex items-center justify-center"
-                  title="Take Back Stage"
-                >
-                  <Radio className="w-3 h-3 text-white" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-        )}
-
-      {/* Top Header & Actions (Icons-Only Header Toolbar with White Icons) */}
+    <div ref={containerRef} className="app show-scrollbars">
+      {/* Top Toolbar */}
       <div className="tb">
-        <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 text-white flex items-center justify-center flex-shrink-0" title="Python Visualizer Studio">
+        <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 text-white flex items-center justify-center flex-shrink-0" title="Python Visualizer">
           <Code2 className="w-4 h-4 text-white" />
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0" title="Curriculum Examples">
           <BookOpen className="w-3.5 h-3.5 text-white flex-shrink-0" />
-          <select id="ex" aria-label="Examples" disabled={isStudent && studentViewOnly && !isStudentPresenting}>
+          <select id="ex" aria-label="Examples">
             <option value="">Examples</option>
           </select>
         </div>
         <button
-          className={`go ${isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}`}
+          className="go"
           id="run"
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Following Live' : 'Run Code (Executes Python script)'}
+          title="Run Code (Executes Python script)"
         >
           <Play className="w-3.5 h-3.5 fill-white text-white inline-block" />
         </button>
         <button
           id="step"
-          className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Step Forward' : 'Step Forward (Line-by-line debugger)'}
+          title="Step Forward (Line-by-line debugger)"
         >
           <StepForward className="w-3.5 h-3.5 text-white inline-block" />
         </button>
         <button
           id="reset"
-          className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-btn-disabled' : ''}
-          title={isStudent && studentViewOnly && !isStudentPresenting ? 'View Screen Only: Reset' : 'Reset Execution'}
+          title="Reset Execution"
         >
           <RotateCcw className="w-3.5 h-3.5 text-white inline-block" />
-        </button>
-        <button
-          type="button"
-          className={`tb-toggle-btn ${hideScrollbars ? 'active' : ''}`}
-          onClick={() => setHideScrollbars((prev) => !prev)}
-          title={`Toggle Scrollbars (Currently: ${hideScrollbars ? 'Hidden' : 'Visible'})`}
-        >
-          {hideScrollbars ? <EyeOff className="w-3.5 h-3.5 text-white inline-block" /> : <Eye className="w-3.5 h-3.5 text-white inline-block" />}
-        </button>
-        <button
-          type="button"
-          className={`tb-toggle-btn ${isHeaderHidden ? 'active' : ''}`}
-          onClick={() => setIsHeaderHidden((prev) => !prev)}
-          title="Toggle Header Navbar (Shortcut: Press H)"
-        >
-          {isHeaderHidden ? <Eye className="w-3.5 h-3.5 text-white inline-block" /> : <EyeOff className="w-3.5 h-3.5 text-white inline-block" />}
         </button>
         <label className="ck text-white flex items-center gap-1 cursor-pointer" title="Predict output before execution">
           <input type="checkbox" id="pr" />
@@ -3743,168 +2661,7 @@ export default function App() {
         <aside className="edp">
           <div className="tab-bar">
             <div className="tab">main.py</div>
-            {isStudent && (
-              <button
-                type="button"
-                onClick={handleToggleStudentPresenting}
-                className={`flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-bold shadow-sm transition-all text-white ${
-                  isStudentPresenting
-                    ? 'bg-amber-500 hover:bg-amber-400 ring-1 ring-amber-400'
-                    : 'bg-emerald-600 hover:bg-emerald-500 animate-pulse'
-                }`}
-                title="When pressed, you can code and visualize for everyone!"
-              >
-                <Code2 className="w-3 h-3 text-white" />
-                <span>{isStudentPresenting ? 'Stop Sharing' : 'Code & Visualize for Everyone'}</span>
-              </button>
-            )}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <button
-                type="button"
-                className={`auto-closer-toggle ${hideScrollbars ? 'on' : ''}`}
-                onClick={() => setHideScrollbars((prev) => !prev)}
-                title="Toggle Hideable Scrollbars across the editor and panels"
-              >
-                Scrollbar: {hideScrollbars ? 'Hidden' : 'Visible'}
-              </button>
-              <button
-                type="button"
-                className={`auto-closer-toggle ${tagToolOpen ? 'on' : ''}`}
-                onClick={handleOpenTagTool}
-                title="Click on Autoclosing Tags: first show first blank, when enter value then show"
-              >
-                Autoclosing Tags {tagToolOpen ? '▲' : '▼'}
-              </button>
-            </div>
           </div>
-
-          {/* Autoclosing Tag Builder: First show first blank, when enter value then show */}
-          {tagToolOpen && (
-            <div className="autoclosing-tag-panel">
-              <div className="tag-panel-header">
-                <div className="tag-panel-title-group">
-                  <span className="tag-panel-badge">Autoclosing Tags</span>
-                  <span className="tag-panel-hint">
-                    {enteredTagValue.trim()
-                      ? `Value "${enteredTagValue.trim()}" entered ➔ autoclosing tag ready`
-                      : 'First blank shown ➔ enter value to close tag'}
-                  </span>
-                </div>
-                <div className="tag-panel-actions-group">
-                  <button
-                    type="button"
-                    className={`auto-closer-toggle ${autoTagCloser ? 'on' : ''}`}
-                    style={{ fontSize: '10.5px', padding: '2px 8px' }}
-                    onClick={() => setAutoTagCloser((prev) => !prev)}
-                    title="Toggle keyboard auto-closing while typing in editor"
-                  >
-                    Editor Auto-close: {autoTagCloser ? 'ON' : 'OFF'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTagToolOpen(false)}
-                    style={{
-                      background: 'transparent',
-                      border: 'none',
-                      color: 'var(--mute)',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      padding: '0 4px',
-                      lineHeight: 1,
-                    }}
-                    title="Close Autoclosing Tag Panel"
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-
-              {/* Tag Canvas: First Blank ➔ Enter Value ➔ Show live */}
-              <div className="tag-interactive-canvas">
-                {/* Opening Tag Bracket */}
-                <div className="tag-bracket-wrapper">
-                  <span className="tag-bracket">&lt;</span>
-                  <input
-                    ref={tagInputRef}
-                    type="text"
-                    className={`tag-first-blank-input ${enteredTagValue ? 'filled' : ''}`}
-                    placeholder="[ first blank ]"
-                    value={enteredTagValue}
-                    onChange={(e) => setEnteredTagValue(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        insertTagIntoCode(enteredTagValue);
-                      }
-                      if (e.key === 'Escape') {
-                        setTagToolOpen(false);
-                      }
-                    }}
-                    title="Enter tag value: first blank, when enter value then show"
-                  />
-                  <span className="tag-bracket">&gt;</span>
-                </div>
-
-                <span className="tag-content-placeholder">content</span>
-
-                {/* Mirror Closing Tag: shows first blank when empty, shows value when entered */}
-                <div
-                  className={`tag-mirror-closing ${
-                    enteredTagValue.trim() ? 'is-filled' : 'is-blank'
-                  }`}
-                >
-                  <span className="tag-bracket">&lt;/</span>
-                  {enteredTagValue.trim() ? (
-                    <span style={{ fontWeight: 800, padding: '0 2px' }}>
-                      {enteredTagValue.trim()}
-                    </span>
-                  ) : (
-                    <span className="tag-blank-preview-badge">first blank</span>
-                  )}
-                  <span className="tag-bracket">&gt;</span>
-                </div>
-
-                {/* Actions */}
-                <button
-                  type="button"
-                  className="tag-btn-insert"
-                  onClick={() => insertTagIntoCode(enteredTagValue)}
-                  title="Insert this tag into code"
-                >
-                  {enteredTagValue.trim()
-                    ? `Insert <${enteredTagValue.trim()}></${enteredTagValue.trim()}>`
-                    : 'Insert Tag'}
-                </button>
-                <button
-                  type="button"
-                  className="tag-btn-blank"
-                  onClick={() => insertTagIntoCode('')}
-                  title="Insert blank tag < > </ > with first blank selected in code"
-                >
-                  Insert Blank &lt; &gt; &lt;/ &gt;
-                </button>
-              </div>
-
-              {/* Quick Tag Presets */}
-              <div className="tag-panel-presets">
-                <span className="tag-preset-label">Quick Tags:</span>
-                {['div', 'span', 'p', 'button', 'section', 'code', 'custom'].map((tagName) => (
-                  <button
-                    key={tagName}
-                    type="button"
-                    className="tag-preset-chip"
-                    onClick={() => {
-                      setEnteredTagValue(tagName);
-                      tagInputRef.current?.focus();
-                    }}
-                    title={`Set value to ${tagName}`}
-                  >
-                    &lt;{tagName}&gt;&lt;/{tagName}&gt;
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="ed">
             <div className="mark" id="mark" />
@@ -3915,9 +2672,7 @@ export default function App() {
               spellCheck={false}
               wrap="off"
               aria-label="Python code editor"
-              readOnly={isStudent && studentViewOnly && !isStudentPresenting}
-              className={isStudent && studentViewOnly && !isStudentPresenting ? 'view-only-textarea' : ''}
-              title={isStudent && studentViewOnly && !isStudentPresenting ? "View Screen Only: Live following Teacher" : "Python code editor"}
+              title="Python code editor"
             />
           </div>
         </aside>
@@ -4049,120 +2804,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* Floating Classroom Video & Mic Tiles */}
-      {currentUser && isVideoTilesOpen && (
-        <ClassroomVideoTiles
-          currentUser={currentUser}
-          peers={peers}
-          mediaStream={mediaStream}
-          remoteStreams={remoteStreams}
-          cameraActive={cameraActive}
-          micActive={micActive}
-          speakingMap={speakingMap}
-          onToggleCamera={handleToggleCamera}
-          onToggleMic={handleToggleMic}
-          onClose={() => setIsVideoTilesOpen(false)}
-        />
-      )}
-
-      {/* Real-time Classroom Conversation & Audio Call Drawer */}
-      {currentUser && (
-        <ClassroomConversationPanel
-          currentUser={currentUser}
-          peers={peers}
-          cameraActive={cameraActive}
-          micActive={micActive}
-          onToggleCamera={handleToggleCamera}
-          onToggleMic={handleToggleMic}
-          isOpen={isConversationOpen}
-          onClose={() => setIsConversationOpen(false)}
-          speakingMap={speakingMap}
-        />
-      )}
-
-      {/* Read-Only Student Classroom Dashboard with Live Stats */}
-      {currentUser && isStudent && (
-        <StudentDashboard
-          currentUser={currentUser}
-          peers={peers}
-          activeTab={activeTab}
-          latestTeacherActionNotice={latestTeacherActionNotice}
-          isOpen={isStudentDashboardOpen}
-          onClose={() => setIsStudentDashboardOpen(false)}
-          onOpenConversation={() => setIsConversationOpen(true)}
-        />
-      )}
-
-      {/* User Requested: Automatic Lecture Video Studio / Review Modal */}
-      {recordedLectureResult && (
-        <LectureVideoModal
-          lecture={recordedLectureResult}
-          onClose={() => setRecordedLectureResult(null)}
-        />
-      )}
-
-      {/* Camera Recording Saved / Review Modal */}
-      {recordedVideoModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#0f172a] border border-slate-700/80 rounded-2xl p-5 max-w-lg w-full shadow-2xl space-y-4 text-left">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
-                  <Video className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-100">Camera Recording Saved</h3>
-                  <p className="text-[11px] text-slate-400">
-                    Duration: {recordedVideoModal.durationStr} · Size: {recordedVideoModal.sizeMb} MB
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setRecordedVideoModal(null)}
-                className="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition-colors"
-                title="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="rounded-xl overflow-hidden bg-black border border-slate-800">
-              <video
-                src={recordedVideoModal.url}
-                controls
-                autoPlay
-                className="w-full max-h-64 object-contain"
-              />
-            </div>
-
-            <div className="flex items-center justify-between pt-1 flex-wrap gap-2">
-              <span className="text-[11px] text-emerald-400 flex items-center gap-1 font-mono truncate max-w-[200px]">
-                <Check className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{recordedVideoModal.filename}</span>
-              </span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={recordedVideoModal.url}
-                  download={recordedVideoModal.filename}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-colors shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download Again</span>
-                </a>
-                <button
-                  type="button"
-                  onClick={() => setRecordedVideoModal(null)}
-                  className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  </>
-);
+  );
 }
